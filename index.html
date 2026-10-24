@@ -1,0 +1,3709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codebase Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<style>
+:root {
+  --bg: #f4f6ff;
+  --surface: #ffffff;
+  --surface2: #f3f5ff;
+  --surface3: #e9edfb;
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --primary-light: #818cf8;
+  --primary-glow: rgba(99,102,241,0.12);
+  --accent: #0ea5e9;
+  --accent2: #ec4899;
+  --text: #1e293b;
+  --text2: #64748b;
+  --border: #e5e8f0;
+  --border-strong: #cdd3e1;
+  --red: #ef4444;
+  --green: #10b981;
+  --amber: #f59e0b;
+  --pink: #ec4899;
+  --radius: 12px;
+  --shadow-sm: 0 1px 3px rgba(30,41,59,0.07);
+  --shadow: 0 6px 18px rgba(30,41,59,0.09);
+  --shadow-lg: 0 16px 48px rgba(30,41,59,0.16);
+  --code-bg: #0f172a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:
+    radial-gradient(1100px 500px at 10% -10%, rgba(99,102,241,0.10) 0%, transparent 60%),
+    radial-gradient(900px 420px at 100% 0%, rgba(14,165,233,0.08) 0%, transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+  color:var(--text); height:100vh; overflow:hidden;
+  font-size:15px;
+}
+
+/* ===== HEADER ===== */
+header {
+  display:flex; align-items:center; justify-content:space-between; padding:0 20px; height:58px;
+  background:rgba(255,255,255,0.82); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border); z-index:30; position:relative; box-shadow:var(--shadow-sm);
+}
+.logo { font-size:1.02rem; font-weight:800; display:flex; align-items:center; gap:9px; letter-spacing:-0.2px; }
+.logo-icon {
+  width:30px; height:30px; border-radius:9px;
+  background:linear-gradient(135deg,var(--primary),var(--accent));
+  display:flex; align-items:center; justify-content:center; color:#fff; font-size:.8rem;
+  box-shadow:0 4px 12px rgba(99,102,241,0.35);
+}
+.logo span { color:var(--primary); }
+.nav { display:flex; gap:3px; margin:0 12px; background:var(--surface2); padding:3px; border-radius:10px; border:1px solid var(--border); }
+.nav-item {
+  padding:6px 14px; border-radius:8px; font-size:.82rem; cursor:pointer; font-weight:500;
+  color:var(--text2); transition:all .15s; border:none; background:transparent; white-space:nowrap;
+}
+.nav-item:hover { color:var(--text); background:rgba(255,255,255,0.7); }
+.nav-item.active { color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary-dark)); box-shadow:0 2px 8px rgba(99,102,241,0.4); }
+.search-wrap { position:relative; width:260px; }
+.search-wrap input {
+  width:100%; padding:7px 10px 7px 30px; border-radius:10px;
+  border:1px solid var(--border); background:#fff;
+  color:var(--text); font-size:.82rem; outline:none; transition:border-color .15s, box-shadow .15s;
+}
+.search-wrap input:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+.search-wrap .si { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text2); font-size:.85rem; pointer-events:none; }
+#searchDD {
+  position:absolute; top:100%; left:0; right:0; margin-top:6px;
+  background:#fff; backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-lg);
+  max-height:220px; overflow-y:auto; display:none; z-index:100; padding:4px;
+}
+#searchDD::-webkit-scrollbar { width:6px; }
+#searchDD::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:6px; }
+.header-actions { display:flex; gap:6px; align-items:center; }
+
+/* ===== MAIN ===== */
+.main { height:calc(100vh - 58px); overflow-y:auto; position:relative; }
+.main::-webkit-scrollbar { width:8px; }
+.main::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:8px; }
+
+/* Page container */
+.page { display:none; padding:22px 24px; max-width:1240px; margin:0 auto; }
+.page.active { display:block; animation:pageIn .25s ease; }
+@keyframes pageIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ===== DASHBOARD ===== */
+.hero {
+  background:linear-gradient(135deg,rgba(99,102,241,0.10),rgba(14,165,233,0.06) 50%,rgba(236,72,153,0.05));
+  border:1px solid rgba(99,102,241,0.15); border-radius:18px;
+  padding:26px 28px; margin-bottom:18px; position:relative; overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.hero::after {
+  content:''; position:absolute; top:-90px; right:-40px; width:280px; height:280px;
+  background:radial-gradient(circle,rgba(99,102,241,0.18),transparent 70%); pointer-events:none;
+}
+.hero-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.hero h1 { font-size:1.65rem; font-weight:800; letter-spacing:-0.5px; }
+.hero p { color:var(--text2); font-size:.92rem; margin-top:6px; }
+.hero-score { text-align:center; background:#fff; border:1px solid var(--border); border-radius:14px; padding:10px 18px; box-shadow:var(--shadow-sm); }
+.hero-score .big { font-size:2.4rem; font-weight:800; color:var(--primary); }
+.hero-score .lbl { font-size:.68rem; color:var(--text2); text-transform:uppercase; letter-spacing:1px; }
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-bottom:18px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+  box-shadow:var(--shadow-sm); transition:box-shadow .15s;
+}
+.stat-card:hover { box-shadow:var(--shadow); }
+.stat-card .v { font-size:1.5rem; font-weight:700; }
+.stat-card .l { font-size:.72rem; color:var(--text2); margin-top:2px; }
+.section-title { font-size:.85rem; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+
+/* Module cards */
+.module-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; margin-bottom:18px; }
+.module-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px;
+  cursor:pointer; transition:all .15s; box-shadow:var(--shadow-sm);
+}
+.module-card:hover { border-color:var(--primary); box-shadow:var(--shadow); transform:translateY(-2px); }
+.module-card .mc-icon { font-size:1.5rem; margin-bottom:6px; }
+.module-card .mc-name { font-size:.92rem; font-weight:600; }
+.module-card .mc-count { font-size:.74rem; color:var(--text2); margin-top:2px; }
+
+/* Health bars */
+.health-list { display:flex; flex-direction:column; gap:8px; }
+.health-row { display:flex; align-items:center; gap:10px; }
+.health-row .hl { font-size:.8rem; width:130px; flex-shrink:0; font-weight:500; }
+.health-row .hb { flex:1; height:8px; background:var(--surface3); border-radius:5px; overflow:hidden; }
+.health-row .hf { height:100%; border-radius:5px; transition:width .5s; }
+.health-row .hp { font-size:.74rem; color:var(--text2); width:34px; text-align:right; font-weight:600; }
+
+/* ===== MODULES PAGE ===== */
+.mod-detail { display:none; }
+.mod-detail.show { display:block; }
+.mod-back { cursor:pointer; font-size:.82rem; color:var(--primary); font-weight:600; margin-bottom:10px; display:inline-block; }
+.mod-back:hover { text-decoration:underline; }
+
+/* ===== GRAPH PAGE ===== */
+.graph-container {
+  position:relative; width:100%; height:calc(100vh - 155px);
+  background: linear-gradient(180deg,#ffffff 0%,#f6f8fa 100%);
+  border-radius:18px; border:1px solid #e6eaee; overflow:hidden;
+  box-shadow:0 10px 28px rgba(60,64,67,0.10), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.graph-container::before {
+  content:''; position:absolute; inset:0;
+  background-image:
+    linear-gradient(rgba(60,64,67,0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60,64,67,0.045) 1px, transparent 1px),
+    radial-gradient(circle at 1px 1px, rgba(60,64,67,0.10) 1px, transparent 0);
+  background-size: 48px 48px, 48px 48px, 12px 12px;
+  pointer-events:none; z-index:0;
+}
+#fullCy { width:100%; height:100%; position:relative; z-index:1; }
+.map-controls {
+  position:absolute; bottom:20px; right:20px; z-index:12;
+  display:flex; flex-direction:column; gap:6px;
+  background:rgba(255,255,255,0.96); backdrop-filter:blur(12px);
+  border:1px solid #e0e7ff; border-radius:14px; padding:6px;
+  box-shadow:0 8px 22px rgba(79,70,229,0.16);
+}
+.mc-btn {
+  width:38px; height:38px; border-radius:10px; border:none; cursor:pointer;
+  background:linear-gradient(160deg,#ffffff,#eef2ff);
+  color:var(--primary-dark); font-size:1.2rem; font-weight:800;
+  transition:all .15s; line-height:1; font-family:inherit;
+  box-shadow:inset 0 -1px 0 rgba(99,102,241,0.18);
+}
+.mc-btn:hover { background:linear-gradient(160deg,#818cf8,#4f46e5); color:#fff; transform:scale(1.06); box-shadow:0 4px 14px rgba(99,102,241,0.45); }
+.mc-btn:active { transform:scale(.95); }
+.mc-pct { text-align:center; font-size:.62rem; font-weight:700; color:#5f6368; padding:2px 0; letter-spacing:.3px; }
+.map-legend {
+  position:absolute; top:18px; left:18px; z-index:12;
+  background:rgba(255,255,255,0.94); backdrop-filter:blur(12px);
+  border:1px solid #e6eaee; border-radius:12px; padding:6px;
+  box-shadow:0 6px 18px rgba(60,64,67,0.14); max-width:280px;
+}
+.ml-toggle {
+  display:flex; align-items:center; gap:8px; width:100%; cursor:pointer;
+  border:none; background:transparent; font-family:inherit;
+  font-size:.7rem; font-weight:800; color:#3c4043; text-transform:uppercase;
+  letter-spacing:.7px; padding:4px 6px;
+}
+.ml-toggle .ml-chev { margin-left:auto; transition:transform .2s; color:#5f6368; }
+.map-legend.collapsed .ml-chev { transform:rotate(-90deg); }
+.ml-body { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:6px 4px 2px; }
+.map-legend.collapsed .ml-body { display:none; }
+.lg-item {
+  display:flex; align-items:center; gap:6px; font-size:.7rem; color:#3c4043;
+  font-weight:600; background:#fff; border:1px solid #e6eaee;
+  padding:3px 9px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,0.04);
+}
+.lg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; box-shadow:inset 0 -1px 2px rgba(0,0,0,0.18); }
+.graph-empty {
+  position:absolute; inset:0; z-index:5; display:none; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:12px; padding:24px; background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
+}
+.graph-empty .ge-title { font-size:1.3rem; font-weight:800; color:var(--text); }
+.graph-empty .ge-sub { font-size:.9rem; color:var(--text2); max-width:420px; line-height:1.6; }
+.explorer-content { width:100%; height:100%; position:relative; z-index:1; overflow-y:auto; padding:16px; }
+.exp-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
+.exp-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:16px; cursor:pointer; transition:all .15s; position:relative; overflow:hidden; box-shadow:var(--shadow-sm);
+}
+.exp-card:hover { border-color:var(--primary); box-shadow:var(--shadow); transform:translateY(-3px); }
+.exp-card .ec-icon { font-size:1.8rem; margin-bottom:8px; }
+.exp-card .ec-name { font-size:.86rem; font-weight:700; margin-bottom:3px; }
+.exp-card .ec-sub { font-size:.7rem; color:var(--text2); }
+.exp-card .ec-badge { position:absolute; top:10px; right:12px; font-size:.64rem; padding:2px 8px; border-radius:6px; background:var(--primary-glow); color:var(--primary); font-weight:600; }
+.exp-file-card {
+  display:flex; align-items:center; gap:12px; padding:10px 14px;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  cursor:pointer; transition:all .12s; margin-bottom:6px; box-shadow:var(--shadow-sm);
+}
+.exp-file-card:hover { border-color:var(--primary); box-shadow:var(--shadow); transform:translateX(3px); }
+.exp-file-card .efc-icon { font-size:1.2rem; flex-shrink:0; }
+.exp-file-card .efc-name { font-size:.82rem; font-weight:600; flex:1; }
+.exp-file-card .efc-lang { font-size:.64rem; color:var(--text2); background:var(--surface2); padding:2px 8px; border-radius:6px; font-weight:600; }
+.exp-file-card .efc-deps { font-size:.64rem; color:var(--text2); flex-shrink:0; }
+
+.graph-explorer-bar {
+  display:flex; align-items:center; gap:10px; padding:9px 14px;
+  background:rgba(255,255,255,0.92); backdrop-filter:blur(14px);
+  border:1px solid #e0e7ff; border-radius:14px; box-shadow:0 4px 16px rgba(79,70,229,0.1);
+  margin-bottom:10px; font-size:.78rem; flex-shrink:0;
+}
+.ge-bar-title {
+  display:flex; align-items:center; gap:7px; white-space:nowrap;
+  font-size:.8rem; font-weight:800; color:#fff;
+  background:linear-gradient(135deg,#818cf8,#4f46e5);
+  padding:7px 13px; border-radius:10px;
+  box-shadow:0 4px 12px rgba(99,102,241,0.35);
+}
+.geb-back {
+  background:#fff; border:1px solid #e2e8f0; border-radius:9px;
+  color:var(--text); padding:6px 13px; cursor:pointer; font-size:.72rem; font-weight:700; transition:all .12s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.06);
+}
+.geb-back:hover { background:var(--primary); color:#fff; border-color:var(--primary); transform:translateY(-1px); }
+.geb-path { flex:1; display:flex; gap:5px; align-items:center; overflow:hidden; }
+.geb-path .gp-seg { color:var(--text2); white-space:nowrap; }
+.geb-path .gp-seg:last-child { color:var(--text); font-weight:800; }
+.geb-path .gp-sep { color:var(--text2); opacity:.5; font-weight:700; }
+.geb-level {
+  color:var(--primary-dark); font-size:.7rem; background:var(--primary-glow);
+  padding:5px 13px; border-radius:999px; white-space:nowrap; font-weight:800;
+  border:1px solid rgba(99,102,241,0.25);
+}
+
+/* ===== IMPACT PAGE ===== */
+.impact-input { display:flex; gap:8px; margin-bottom:12px; }
+.impact-input input { flex:1; padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:#fff; color:var(--text); font-size:.82rem; outline:none; transition:box-shadow .15s; }
+.impact-input input:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+.impact-dd {
+  position:absolute; top:100%; left:0; right:64px; margin-top:6px;
+  background:#fff; border:1px solid var(--border); border-radius:12px;
+  box-shadow:var(--shadow-lg); max-height:240px; overflow-y:auto; display:none; z-index:40; padding:4px;
+}
+.impact-dd-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:.8rem; transition:background .12s; }
+.impact-dd-item:hover { background:var(--surface2); }
+.impact-dd-item .imp-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.impact-dd-item .imp-lbl { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.impact-dd-item .imp-type { margin-left:auto; font-size:.6rem; color:var(--text2); background:var(--surface2); padding:2px 7px; border-radius:6px; text-transform:uppercase; letter-spacing:.4px; flex-shrink:0; }
+.impact-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+/* ===== AI CHAT ===== */
+.chat-container {
+  background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow);
+  height:560px; display:flex; flex-direction:column; overflow:hidden;
+}
+.chat-msgs { flex:1; overflow-y:auto; padding:16px; background:linear-gradient(180deg,var(--surface2),#fff); }
+.chat-msgs::-webkit-scrollbar { width:6px; }
+.chat-msgs::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:6px; }
+.chat-msg { margin-bottom:10px; font-size:.86rem; line-height:1.55; }
+.chat-msg.user { text-align:right; }
+.chat-msg.user .cm-b { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; display:inline-block; padding:9px 14px; border-radius:14px 14px 4px 14px; box-shadow:var(--shadow-sm); text-align:left; max-width:80%; }
+.chat-msg.ai .cm-b { background:#fff; border:1px solid var(--border); display:inline-block; padding:9px 14px; border-radius:14px 14px 14px 4px; max-width:92%; }
+.chat-thinking { color:var(--text2); font-style:italic; }
+.chat-sect { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin:8px 0 3px; }
+.chat-row { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; padding:2px 0; font-size:.8rem; }
+.chat-link { color:var(--primary); font-weight:600; cursor:pointer; }
+.chat-link:hover { text-decoration:underline; }
+.chat-mut { color:var(--text2); font-size:.72rem; }
+.chat-loc { color:var(--text2); font-size:.68rem; font-family:'JetBrains Mono',ui-monospace,monospace; }
+.chat-path { flex-basis:100%; font-size:.66rem; color:var(--text2); font-family:'JetBrains Mono',ui-monospace,monospace; }
+.chat-code { background:var(--code-bg,#0f172a); color:#e2e8f0; border-radius:8px; padding:8px 10px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.66rem; line-height:1.5; overflow-x:auto; white-space:pre-wrap; margin:6px 0; max-height:200px; overflow-y:auto; }
+.chat-code .snip-hl { display:inline-block; width:100%; background:rgba(99,102,241,.28); border-radius:3px; }
+.chat-input-area { display:flex; gap:8px; padding:12px; border-top:1px solid var(--border); background:#fff; }
+.chat-input-area input { flex:1; padding:9px 12px; border-radius:10px; border:1px solid var(--border); background:var(--surface2); color:var(--text); font-size:.85rem; outline:none; transition:box-shadow .15s; }
+.chat-input-area input:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); background:#fff; }
+
+/* ===== DETAIL PANEL ===== */
+.detail-overlay {
+  position:fixed; top:0; right:-520px; width:500px; height:100vh;
+  background:#fff; box-shadow:-8px 0 40px rgba(30,41,59,0.12);
+  border-left:1px solid var(--border); z-index:50;
+  transition:right .3s cubic-bezier(0.16,1,0.3,1);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.detail-overlay.open { right:0; }
+.do-hdr { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.do-title { font-size:.95rem; font-weight:700; }
+.do-close { cursor:pointer; color:var(--text2); font-size:1.1rem; padding:4px; transition:color .15s; }
+.do-close:hover { color:var(--red); }
+.do-body { flex:1; overflow-y:auto; padding:14px 18px; }
+.do-code { background:var(--code-bg); border-radius:10px; padding:14px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.75rem; line-height:1.6; overflow-x:auto; white-space:pre-wrap; border:1px solid #1e293b; max-height:280px; overflow-y:auto; color:#e2e8f0; }
+.do-code .kw { color:#ff7b72; } .do-code .fn { color:#d2a8ff; } .do-code .str { color:#7dd3fc; } .do-code .cm { color:#64748b; }
+.do-code .snip-hl { display:inline-block; width:100%; background:rgba(99,102,241,.22); border-radius:3px; }
+.do-sect { font-size:.68rem; text-transform:uppercase; letter-spacing:.8px; color:var(--text2); margin:14px 0 6px; font-weight:700; }
+.do-stat { background:var(--surface2); padding:6px 12px; border-radius:8px; font-size:.75rem; border:1px solid var(--border); display:inline-block; margin-right:6px; margin-bottom:6px; }
+.do-stat strong { color:var(--text); }
+.conn-item { font-size:.76rem; padding:6px 10px; background:var(--surface2); border-radius:8px; border-left:3px solid var(--primary); cursor:pointer; margin-bottom:4px; transition:background .12s; }
+.conn-item:hover { background:var(--primary-glow); }
+.conn-item.in { border-left-color:var(--amber); }
+
+/* ===== COMMON ===== */
+.btn { padding:7px 16px; border-radius:10px; border:none; font-size:.8rem; cursor:pointer; font-weight:600; transition:all .15s; font-family:inherit; }
+.btn-primary { background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; box-shadow:0 2px 8px rgba(99,102,241,0.35); }
+.btn-primary:hover { box-shadow:0 4px 14px rgba(99,102,241,0.45); transform:translateY(-1px); }
+.btn-ghost { background:#fff; border:1px solid var(--border); color:var(--text2); }
+.btn-ghost:hover { border-color:var(--primary); color:var(--primary); }
+.btn-sm { padding:5px 10px; font-size:.7rem; }
+.file-input-area { border:2px dashed var(--border-strong); border-radius:14px; padding:24px; text-align:center; cursor:pointer; margin-bottom:10px; transition:all .15s; }
+.file-input-area:hover { border-color:var(--primary); background:var(--primary-glow); }
+.file-input-area input { display:none; }
+.code-edit { width:100%; height:70px; background:#fff; border:1px solid var(--border); border-radius:10px; color:var(--text); padding:10px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.78rem; resize:vertical; outline:none; }
+.code-edit:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+.fade-in { animation:fadeIn .3s; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+.empty-state { text-align:center; padding:50px; color:var(--text2); }
+.empty-state .big { font-size:3rem; margin-bottom:10px; }
+.impact-viz { width:100%; height:280px; background:#fff; border-radius:12px; margin-top:12px; border:1px solid var(--border); box-shadow:var(--shadow-sm); }
+#impactCy { width:100%; height:100%; }
+.mod-graph { width:100%; height:240px; background:#fff; border-radius:12px; margin:12px 0; border:1px solid var(--border); box-shadow:var(--shadow-sm); }
+#modCy { width:100%; height:100%; }
+.import-input { display:none; }
+.explain-panel {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:#fff; border:1px solid var(--border); border-radius:16px;
+  padding:20px; z-index:60; min-width:360px; max-width:500px;
+  max-height:62vh; overflow-y:auto; display:none; box-shadow:var(--shadow-lg);
+}
+.explain-panel.show { display:block; }
+.explain-panel .ep-title { font-size:.9rem; font-weight:700; margin-bottom:10px; }
+.explain-panel .ep-step { padding:6px 10px; background:var(--surface2); border-radius:6px; margin-bottom:4px; font-size:.76rem; border-left:3px solid var(--primary); }
+.explain-panel .ep-close { float:right; cursor:pointer; color:var(--text2); }
+.preview-popup {
+  position:absolute; z-index:20; pointer-events:none;
+  background:rgba(255,255,255,0.97); backdrop-filter:blur(14px);
+  border:1px solid #e0e7ff; border-radius:12px;
+  padding:9px 14px; font-size:.78rem; display:none; white-space:nowrap;
+  box-shadow:0 10px 26px rgba(79,70,229,0.2); min-width:120px; color:var(--text); font-weight:600;
+}
+.graph-help {
+  position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:11;
+  pointer-events:none;
+  max-width:70%; text-align:center;
+  background:rgba(255,255,255,0.95); backdrop-filter:blur(12px);
+  border:1px solid #e0e7ff; border-radius:12px; padding:9px 18px;
+  box-shadow:0 8px 22px rgba(79,70,229,0.14);
+  font-size:.78rem; font-weight:600; color:var(--text); line-height:1.4;
+  display:none; align-items:center; gap:8px;
+}
+.graph-help.show { display:flex; }
+.graph-help .gh-emoji { font-size:1.15rem; flex-shrink:0; }
+.graph-help strong { color:var(--primary-dark); }
+.graph-footer {
+  position:absolute; bottom:20px; left:20px; z-index:10;
+  pointer-events:none;
+  display:flex; gap:12px; align-items:center;
+  background:rgba(255,255,255,0.92); backdrop-filter:blur(12px);
+  border:1px solid #e0e7ff; border-radius:12px; box-shadow:0 6px 18px rgba(79,70,229,0.12);
+  padding:8px 16px; font-size:.74rem; color:var(--text2);
+}
+.graph-footer span:first-child { color:var(--text); font-weight:800; }
+.graph-footer .gf-hint { display:flex; align-items:center; gap:6px; font-size:.68rem; color:var(--text2); }
+
+/* ===== TUTORIAL ===== */
+.graph-tutorial {
+  position:fixed; inset:0; z-index:100;
+  background:rgba(244,246,255,0.6); backdrop-filter:blur(8px);
+  display:none; align-items:center; justify-content:center;
+}
+.graph-tutorial.show { display:flex; }
+.gt-content {
+  background:#fff; border:1px solid var(--border); border-radius:18px;
+  padding:28px; max-width:400px; text-align:center; box-shadow:var(--shadow-lg);
+}
+.gt-icon {
+  width:52px; height:52px; margin:0 auto 12px;
+  background:linear-gradient(135deg,var(--primary),var(--accent));
+  border-radius:14px; display:flex; align-items:center; justify-content:center;
+  font-size:1.4rem; color:#fff; font-weight:700; box-shadow:0 6px 16px rgba(99,102,241,0.35);
+}
+.gt-title { font-size:1.15rem; font-weight:800; margin-bottom:16px; }
+.gt-steps { text-align:left; margin-bottom:16px; }
+.gt-step { display:flex; align-items:center; gap:10px; font-size:.82rem; margin-bottom:10px; color:var(--text2); line-height:1.45; }
+.gt-step strong { color:var(--text); }
+.gt-num {
+  width:24px; height:24px; border-radius:8px; flex-shrink:0;
+  background:var(--primary-glow); color:var(--primary);
+  display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:800;
+}
+.skeleton { background:linear-gradient(90deg,var(--surface3) 25%,rgba(255,255,255,0.6) 50%,var(--surface3) 75%); background-size:200% 100%; animation:shimmer 1.2s ease-in-out infinite; border-radius:8px; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.dash-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+@media(max-width:800px){.dash-row{grid-template-columns:1fr;}}
+.analytics-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
+@media(max-width:900px){.analytics-grid{grid-template-columns:repeat(2,1fr);}}
+.analytics-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:14px 16px; position:relative; overflow:hidden; box-shadow:var(--shadow-sm); transition:box-shadow .15s;
+}
+.analytics-card:hover { box-shadow:var(--shadow); }
+.analytics-card .ac-v { font-size:1.5rem; font-weight:800; }
+.analytics-card .ac-l { font-size:.68rem; color:var(--text2); text-transform:uppercase; letter-spacing:.6px; font-weight:700; }
+.analytics-card .ac-spark { position:absolute; bottom:0; left:0; right:0; height:24px; opacity:0.25; pointer-events:none; }
+.analytics-card .ac-stat { position:absolute; top:12px; right:14px; font-size:.64rem; padding:2px 8px; border-radius:6px; font-weight:600; }
+.ac-up { background:rgba(16,185,129,0.12); color:var(--green); }
+.ac-neutral { background:rgba(245,158,11,0.12); color:var(--amber); }
+.donut-wrap { display:flex; align-items:center; gap:14px; }
+.donut-legend { font-size:.74rem; }
+.donut-legend .dl-item { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+.donut-legend .dl-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.top-file-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:6px 8px; font-size:.76rem; cursor:pointer; border-radius:8px; transition:all .12s;
+}
+.top-file-item:hover { background:var(--surface2); }
+.top-file-item .tfi-bar { height:4px; border-radius:2px; background:linear-gradient(90deg,var(--primary),var(--accent)); transition:width .4s; }
+.top-file-item .tfi-n { display:flex; align-items:center; gap:6px; overflow:hidden; font-weight:500; }
+.top-file-item .tfi-c { color:var(--text2); font-size:.68rem; flex-shrink:0; font-weight:600; }
+.impact-list, .dead-list { max-height:220px; overflow-y:auto; }
+.impact-list::-webkit-scrollbar, .dead-list::-webkit-scrollbar { width:6px; }
+.impact-list::-webkit-scrollbar-thumb, .dead-list::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:6px; }
+.impact-item, .dead-item { padding:6px 10px; font-size:.76rem; cursor:pointer; background:var(--surface2); border-radius:8px; margin-bottom:4px; border-left:3px solid var(--primary); transition:background .12s; }
+.impact-item:hover, .dead-item:hover { background:var(--primary-glow); }
+.dead-item { display:flex; align-items:center; gap:8px; }
+.dead-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.dead-main { display:flex; flex-direction:column; gap:1px; overflow:hidden; flex:1; }
+.dead-lbl { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dead-loc { font-size:.6rem; color:var(--text2); font-family:"SF Mono",Consolas,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dead-badge { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:2px 6px; border-radius:20px; flex-shrink:0; }
+.dc-bad { background:rgba(239,68,68,.12); color:var(--red); }
+.dc-warn { background:rgba(245,158,11,.14); color:#b45309; }
+.dead-why { font-size:.6rem; color:var(--text2); margin:-1px 0 6px 25px; font-style:italic; }
+.dead-group { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin:8px 0 4px; }
+.impact-err { background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.3); border-radius:10px; padding:10px 12px; font-size:.72rem; color:var(--red); }
+.impact-scope { background:var(--surface2); border-radius:10px; padding:8px 10px; font-size:.68rem; color:var(--text2); margin-bottom:6px; line-height:1.5; }
+.impact-scope strong { color:var(--text); }
+.impact-group { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin:10px 0 4px; }
+.impact-item { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; }
+.impact-lbl { font-weight:600; }
+.impact-reason { font-size:.6rem; color:var(--accent); }
+.impact-loc { font-size:.6rem; color:var(--text2); font-family:"SF Mono",Consolas,monospace; margin-left:auto; }
+.impact-path { flex-basis:100%; font-size:.58rem; color:var(--text2); font-family:"SF Mono",Consolas,monospace; margin-top:2px; }
+.dir-row:hover { background:var(--surface2); }
+.file-row:hover { background:var(--surface2); }
+.arch-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+.arch-map {
+  position:relative; height:360px; margin-bottom:16px; border-radius:16px; overflow:hidden;
+  background:radial-gradient(ellipse at 25% 25%, rgba(99,102,241,0.10) 0%, transparent 55%),
+             radial-gradient(ellipse at 80% 75%, rgba(14,165,233,0.08) 0%, transparent 55%),
+             linear-gradient(160deg,#f4f6ff,#ffffff);
+  border:1px solid #e0e7ff; box-shadow:0 10px 28px rgba(79,70,229,0.12);
+}
+.arch-map::before {
+  content:''; position:absolute; inset:0; pointer-events:none;
+  background-image:linear-gradient(rgba(99,102,241,0.05) 1px, transparent 1px),
+                   linear-gradient(90deg, rgba(99,102,241,0.05) 1px, transparent 1px);
+  background-size:38px 38px;
+}
+#archCy { width:100%; height:100%; position:relative; z-index:1; }
+.arch-map-hint {
+  position:absolute; bottom:12px; left:50%; transform:translateX(-50%); z-index:3;
+  background:rgba(255,255,255,0.94); backdrop-filter:blur(10px); border:1px solid #e0e7ff;
+  border-radius:999px; padding:6px 14px; font-size:.68rem; color:var(--text2); font-weight:600;
+  box-shadow:0 4px 14px rgba(79,70,229,0.12); white-space:nowrap;
+}
+.arch-map-legend {
+  position:absolute; top:12px; left:12px; z-index:3;
+  background:rgba(255,255,255,0.94); backdrop-filter:blur(10px); border:1px solid #e0e7ff;
+  border-radius:10px; padding:6px 12px; font-size:.68rem; color:var(--text); font-weight:600;
+  box-shadow:0 4px 14px rgba(79,70,229,0.12);
+}
+.arch-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:14px;
+  padding:16px; cursor:pointer; transition:all .15s; box-shadow:var(--shadow-sm); overflow:hidden;
+}
+.arch-card:hover { border-color:var(--primary); transform:translateY(-3px); box-shadow:var(--shadow); }
+.arch-name { font-size:.9rem; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.arch-icon { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.7rem; flex-shrink:0; font-weight:800; }
+.arch-stats { display:flex; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+.arch-stat { font-size:.7rem; color:var(--text2); }
+.arch-stat .as-v { font-size:.82rem; font-weight:700; color:var(--text); }
+.arch-deps { font-size:.68rem; color:var(--text2); margin-top:5px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.arch-deps-label { font-weight:800; font-size:.64rem; margin-right:2px; }
+.arch-dep-tag { background:var(--surface2); padding:2px 8px; border-radius:6px; font-size:.64rem; color:var(--primary); font-weight:600; cursor:pointer; }
+.arch-dep-tag:hover { background:var(--primary-glow); }
+
+
+/* ============================================================
+   CODEBASE MAP  —  full-bleed explorer shell
+   ============================================================ */
+#page-graph {
+  padding:0 !important; margin:0 !important; max-width:none !important;
+  height:100%; display:none; flex-direction:column; overflow:hidden;
+}
+#page-graph.active { display:flex !important; animation:none; }
+
+/* ---------- Toolbar ---------- */
+.map-bar {
+  display:flex; align-items:center; gap:10px; flex-shrink:0;
+  height:52px; padding:0 14px;
+  background:linear-gradient(180deg,#ffffff,#fbfcfe);
+  border-bottom:1px solid var(--border);
+  box-shadow:0 1px 2px rgba(30,41,59,.05);
+  z-index:20;
+}
+.map-bar-project {
+  display:flex; align-items:center; gap:9px; padding:5px 11px 5px 8px;
+  border-radius:10px; background:var(--surface2); border:1px solid var(--border);
+  max-width:270px; min-width:0;
+}
+.map-bar-project .mpp-ico {
+  width:26px; height:26px; border-radius:8px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:.78rem;
+  background:linear-gradient(135deg,var(--primary),var(--accent)); color:#fff;
+}
+.map-bar-project .mpp-txt { min-width:0; }
+.map-bar-project .mpp-name {
+  font-size:.78rem; font-weight:700; line-height:1.15; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.map-bar-project .mpp-meta { font-size:.63rem; color:var(--text2); line-height:1.2; }
+.map-bar-sep { width:1px; height:26px; background:var(--border); flex-shrink:0; }
+
+.map-search { position:relative; flex:1; max-width:420px; min-width:150px; }
+.map-search input {
+  width:100%; padding:8px 32px 8px 32px; border-radius:10px;
+  border:1px solid var(--border); background:#fff; color:var(--text);
+  font-size:.8rem; outline:none; transition:border-color .15s, box-shadow .15s;
+}
+.map-search input:focus { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+.map-search .ms-ico { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text2); font-size:.82rem; pointer-events:none; }
+.map-search .ms-clear {
+  position:absolute; right:7px; top:50%; transform:translateY(-50%);
+  border:none; background:transparent; color:var(--text2); cursor:pointer;
+  font-size:.9rem; line-height:1; padding:3px; display:none;
+}
+.map-search.has-q .ms-clear { display:block; }
+.map-search .ms-kbd {
+  position:absolute; right:9px; top:50%; transform:translateY(-50%);
+  font-size:.6rem; color:var(--text2); border:1px solid var(--border);
+  border-radius:5px; padding:1px 5px; background:var(--surface2);
+}
+
+.map-tools { display:flex; align-items:center; gap:5px; margin-left:auto; }
+.map-btn {
+  display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 11px;
+  border-radius:9px; border:1px solid var(--border); background:#fff; color:var(--text);
+  font-size:.74rem; font-weight:600; cursor:pointer; font-family:inherit;
+  transition:all .14s; white-space:nowrap;
+}
+.map-btn:hover { background:var(--surface2); border-color:var(--border-strong); color:var(--text); }
+.map-btn:active { transform:translateY(1px); }
+.map-btn.on { background:var(--primary-glow); border-color:var(--primary); color:var(--primary-dark); }
+.map-btn.icon { width:32px; padding:0; justify-content:center; font-size:.9rem; }
+.map-btn[disabled] { opacity:.42; cursor:not-allowed; }
+.map-btn .mb-ico { font-size:.85rem; line-height:1; }
+
+/* ---------- Workspace ---------- */
+.map-shell { flex:1; display:flex; min-height:0; position:relative; }
+
+/* ---------- Left panel ---------- */
+.map-side {
+  width:286px; flex-shrink:0; display:flex; flex-direction:column;
+  background:#fff; border-right:1px solid var(--border); min-height:0;
+  transition:margin-left .24s cubic-bezier(.4,0,.2,1);
+}
+.map-side.collapsed { margin-left:-286px; }
+.map-side-tabs { display:flex; gap:2px; padding:8px 8px 0; border-bottom:1px solid var(--border); flex-shrink:0; }
+.map-side-tab {
+  flex:1; padding:7px 4px 8px; border:none; background:transparent; cursor:pointer;
+  font-size:.72rem; font-weight:700; color:var(--text2); font-family:inherit;
+  border-bottom:2px solid transparent; border-radius:6px 6px 0 0;
+}
+.map-side-tab.active { color:var(--primary-dark); border-bottom-color:var(--primary); background:var(--primary-glow); }
+.map-side-body { flex:1; overflow-y:auto; min-height:0; }
+.map-side-body::-webkit-scrollbar { width:7px; }
+.map-side-body::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:7px; }
+.map-pane { display:none; padding:10px; }
+.map-pane.active { display:block; }
+
+.msec { margin-bottom:14px; }
+.msec-h {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  font-size:.63rem; font-weight:800; text-transform:uppercase; letter-spacing:.7px;
+  color:var(--text2); margin:0 2px 7px;
+}
+.msec-h .msec-act {
+  font-size:.62rem; font-weight:700; color:var(--primary); cursor:pointer;
+  text-transform:none; letter-spacing:0; background:none; border:none; font-family:inherit;
+}
+.msec-h .msec-act:hover { text-decoration:underline; }
+
+.mrow {
+  display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px;
+  cursor:pointer; transition:background .12s; border:1px solid transparent;
+}
+.mrow:hover { background:var(--surface2); }
+.mrow.sel { background:var(--primary-glow); border-color:rgba(99,102,241,.28); }
+.mrow-ico {
+  width:22px; height:22px; border-radius:7px; flex-shrink:0; display:flex;
+  align-items:center; justify-content:center; font-size:.7rem; color:#fff;
+}
+.mrow-txt { min-width:0; flex:1; }
+.mrow-name {
+  font-size:.76rem; font-weight:600; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.mrow-sub {
+  font-size:.63rem; color:var(--text2); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; direction:rtl; text-align:left;
+}
+.mrow-badge {
+  font-size:.6rem; font-weight:700; padding:1px 6px; border-radius:999px;
+  background:var(--surface2); color:var(--text2); flex-shrink:0;
+}
+
+.mfilter { margin-bottom:9px; }
+.mfilter > label {
+  display:block; font-size:.63rem; font-weight:700; color:var(--text2);
+  margin:0 0 4px 2px; text-transform:uppercase; letter-spacing:.5px;
+}
+.mchips { display:flex; flex-wrap:wrap; gap:4px; }
+.mchip {
+  font-size:.67rem; font-weight:600; padding:3px 8px; border-radius:999px;
+  border:1px solid var(--border); background:#fff; color:var(--text2);
+  cursor:pointer; user-select:none; transition:all .12s; font-family:inherit;
+}
+.mchip:hover { border-color:var(--border-strong); color:var(--text); }
+.mchip.on { background:var(--primary); border-color:var(--primary); color:#fff; }
+.mchip.on.t-file { background:#2563eb; border-color:#2563eb; }
+.mchip.on.t-function { background:#16a34a; border-color:#16a34a; }
+.mchip.on.t-class { background:#f59e0b; border-color:#f59e0b; }
+.mchip.on.t-api { background:#ef4444; border-color:#ef4444; }
+.mchip.on.t-model { background:#6366f1; border-color:#6366f1; }
+.mchip.on.t-module { background:#64748b; border-color:#64748b; }
+.mselect {
+  width:100%; padding:6px 8px; border-radius:8px; border:1px solid var(--border);
+  background:#fff; color:var(--text); font-size:.73rem; font-family:inherit; outline:none;
+}
+.mselect:focus { border-color:var(--primary); }
+.mradio { display:flex; flex-direction:column; gap:4px; }
+.mradio label {
+  display:flex; align-items:center; gap:7px; font-size:.72rem; color:var(--text);
+  cursor:pointer; padding:5px 7px; border-radius:7px; border:1px solid transparent;
+}
+.mradio label:hover { background:var(--surface2); }
+.mradio input { accent-color:var(--primary); margin:0; }
+.mradio input[type=radio] { accent-color:var(--primary); }
+.mbtn-wide {
+  width:100%; padding:7px; border-radius:9px; border:1px solid var(--border);
+  background:#fff; color:var(--text2); font-size:.72rem; font-weight:700;
+  cursor:pointer; font-family:inherit; transition:all .14s;
+}
+.mbtn-wide:hover { background:var(--surface2); color:var(--text); border-color:var(--border-strong); }
+
+.mempty { padding:22px 12px; text-align:center; color:var(--text2); font-size:.74rem; line-height:1.5; }
+.mempty .me-ico { font-size:1.5rem; display:block; margin-bottom:6px; opacity:.6; }
+.mres {
+  display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:8px;
+  cursor:pointer; border:1px solid transparent;
+}
+.mres:hover { background:var(--surface2); }
+.mres .mr-type {
+  font-size:.58rem; font-weight:800; text-transform:uppercase; letter-spacing:.4px;
+  padding:2px 6px; border-radius:5px; flex-shrink:0; color:#fff;
+}
+.mres .mr-main { min-width:0; flex:1; }
+.mres .mr-name { font-size:.75rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mres .mr-path { font-size:.62rem; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ---------- Canvas ---------- */
+.map-canvas { flex:1; position:relative; min-width:0; background:#eef1f6; overflow:hidden; }
+.map-canvas::before {
+  content:''; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background-image:
+    linear-gradient(rgba(100,116,139,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100,116,139,.07) 1px, transparent 1px);
+  background-size:40px 40px;
+}
+#fullCy { position:absolute; inset:0; z-index:1; }
+#fullCy canvas { outline:none; }
+
+/* ---------- Floating canvas UI ---------- */
+.map-float { position:absolute; z-index:12; }
+.map-ctl {
+  right:14px; bottom:14px; display:flex; flex-direction:column; gap:5px;
+  background:rgba(255,255,255,.96); backdrop-filter:blur(12px);
+  border:1px solid var(--border); border-radius:12px; padding:5px;
+  box-shadow:var(--shadow);
+}
+.map-ctl button {
+  width:32px; height:32px; border-radius:9px; border:1px solid transparent;
+  background:transparent; color:var(--text); font-size:1rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-family:inherit;
+  transition:all .13s; line-height:1;
+}
+.map-ctl button:hover { background:var(--surface2); border-color:var(--border); }
+.map-ctl button:active { transform:scale(.94); }
+.map-ctl .mc-zoom {
+  text-align:center; font-size:.6rem; font-weight:700; color:var(--text2);
+  padding:2px 0; font-variant-numeric:tabular-nums;
+}
+
+.map-minimap {
+  left:14px; bottom:14px; width:212px; height:146px;
+  background:rgba(255,255,255,.95); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:12px; overflow:hidden;
+  box-shadow:var(--shadow); display:none;
+}
+.map-minimap.show { display:block; }
+.map-minimap .mm-h {
+  position:absolute; top:0; left:0; right:0; height:22px; z-index:3;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 8px; font-size:.6rem; font-weight:700; color:var(--text2);
+  background:rgba(255,255,255,.9); border-bottom:1px solid var(--border);
+}
+#mapMiniCy { position:absolute; inset:22px 0 0 0; }
+
+.map-legend {
+  right:14px; top:14px; width:172px;
+  background:rgba(255,255,255,.95); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:11px; overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.map-legend .mlg-h {
+  display:flex; align-items:center; gap:6px; padding:6px 9px; cursor:pointer;
+  font-size:.63rem; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
+  color:var(--text2); user-select:none;
+}
+.map-legend .mlg-h:hover { background:var(--surface2); }
+.map-legend .mlg-body { padding:2px 9px 8px; display:none; }
+.map-legend.open .mlg-body { display:block; }
+.map-legend .mlg-row {
+  display:flex; align-items:center; gap:7px; font-size:.68rem; color:var(--text);
+  padding:2.5px 0; font-weight:500;
+}
+.map-legend .mlg-sw { width:15px; height:11px; border-radius:3px; flex-shrink:0; }
+.map-legend .mlg-ln { width:16px; height:0; border-top-width:2px; flex-shrink:0; }
+
+.map-bc {
+  left:14px; top:14px; display:flex; align-items:center; gap:2px; flex-wrap:wrap;
+  background:rgba(255,255,255,.95); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:10px; padding:5px 9px;
+  box-shadow:var(--shadow-sm); font-size:.72rem; max-width:60%;
+}
+.map-bc .bc-seg { cursor:pointer; color:var(--text2); font-weight:600; padding:2px 5px; border-radius:6px; }
+.map-bc .bc-seg:hover { background:var(--surface2); color:var(--text); }
+.map-bc .bc-seg.cur { color:var(--primary-dark); font-weight:800; cursor:default; }
+.map-bc .bc-sep { color:var(--border-strong); }
+
+.map-status {
+  left:14px; bottom:14px; display:flex; align-items:center; gap:10px;
+  background:rgba(255,255,255,.93); backdrop-filter:blur(10px);
+  border:1px solid var(--border); border-radius:9px; padding:4px 10px;
+  font-size:.66rem; color:var(--text2); font-weight:600;
+  box-shadow:var(--shadow-sm);
+}
+.map-minimap.show ~ .map-status { bottom:170px; }
+
+.map-hint {
+  position:absolute; left:50%; transform:translateX(-50%); bottom:16px; z-index:11;
+  background:rgba(30,41,59,.86); color:#fff; font-size:.68rem; font-weight:600;
+  padding:5px 12px; border-radius:999px; pointer-events:none;
+  opacity:0; transition:opacity .3s; white-space:nowrap;
+}
+.map-hint.show { opacity:1; }
+
+/* ---------- Details panel ---------- */
+.map-detail {
+  width:352px; flex-shrink:0; background:#fff; border-left:1px solid var(--border);
+  display:flex; flex-direction:column; min-height:0;
+  transform:translateX(100%); transition:transform .26s cubic-bezier(.4,0,.2,1);
+  margin-right:-352px;
+}
+.map-detail.open { transform:translateX(0); margin-right:0; }
+.map-detail-hd {
+  display:flex; align-items:flex-start; gap:9px; padding:13px 14px;
+  border-bottom:1px solid var(--border); flex-shrink:0;
+}
+.map-detail-ico {
+  width:32px; height:32px; border-radius:9px; flex-shrink:0; display:flex;
+  align-items:center; justify-content:center; font-size:.95rem; color:#fff;
+}
+.map-detail-tt { flex:1; min-width:0; }
+.map-detail-tt .mdt-name {
+  font-size:.88rem; font-weight:800; line-height:1.25; word-break:break-word;
+}
+.map-detail-tt .mdt-type {
+  font-size:.63rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+  color:var(--text2); margin-top:2px;
+}
+.map-detail-x {
+  border:none; background:transparent; color:var(--text2); cursor:pointer;
+  font-size:1rem; line-height:1; padding:4px; border-radius:6px;
+}
+.map-detail-x:hover { background:var(--surface2); color:var(--text); }
+.map-detail-bd { flex:1; overflow-y:auto; padding:13px 14px; }
+.map-detail-bd::-webkit-scrollbar { width:7px; }
+.map-detail-bd::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:7px; }
+.md-stats { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:13px; }
+.md-stat {
+  background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:7px 9px;
+}
+.md-stat .mds-v { font-size:1.05rem; font-weight:800; line-height:1.1; }
+.md-stat .mds-l { font-size:.6rem; color:var(--text2); font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.md-sect {
+  font-size:.63rem; font-weight:800; text-transform:uppercase; letter-spacing:.6px;
+  color:var(--text2); margin:14px 0 6px; display:flex; align-items:center; gap:6px;
+}
+.md-sect .mds-count { background:var(--surface2); padding:1px 6px; border-radius:999px; font-size:.6rem; }
+.md-list { display:flex; flex-direction:column; gap:2px; }
+.md-item {
+  display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px;
+  cursor:pointer; border:1px solid transparent; transition:background .12s;
+}
+.md-item:hover { background:var(--surface2); }
+.md-item .mdi-ico {
+  width:20px; height:20px; border-radius:6px; flex-shrink:0; display:flex;
+  align-items:center; justify-content:center; font-size:.62rem; color:#fff;
+}
+.md-item .mdi-txt { min-width:0; flex:1; }
+.md-item .mdi-name { font-size:.74rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.md-item .mdi-rel { font-size:.62rem; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.md-item .mdi-line { font-size:.6rem; color:var(--text2); font-variant-numeric:tabular-nums; flex-shrink:0; }
+.md-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:13px 0 4px; }
+.md-act {
+  padding:7px 8px; border-radius:9px; border:1px solid var(--border); background:#fff;
+  font-size:.7rem; font-weight:700; color:var(--text); cursor:pointer;
+  font-family:inherit; transition:all .14s; text-align:center;
+}
+.md-act:hover { background:var(--primary-glow); border-color:var(--primary); color:var(--primary-dark); }
+.md-act.wide { grid-column:1 / -1; }
+.md-code {
+  background:#0f172a; color:#e2e8f0; border-radius:9px; padding:10px 12px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.68rem;
+  line-height:1.55; overflow-x:auto; white-space:pre; max-height:280px; overflow-y:auto;
+}
+.md-code .kw { color:#c084fc; } .md-code .fn { color:#60a5fa; }
+.md-code .str { color:#86efac; } .md-code .cm { color:#64748b; }
+.md-code .snip-hl { background:rgba(250,204,21,.2); display:block; margin:0 -12px; padding:0 12px; }
+.md-path {
+  font-size:.71rem; color:var(--text); background:var(--surface2); border:1px solid var(--border);
+  border-radius:8px; padding:6px 9px; word-break:break-all; font-family:ui-monospace,Menlo,monospace;
+}
+.md-note { font-size:.7rem; color:var(--text2); line-height:1.5; }
+.md-tag {
+  display:inline-block; font-size:.62rem; font-weight:700; padding:2px 7px;
+  border-radius:999px; background:var(--surface2); color:var(--text2); margin:0 4px 4px 0;
+}
+
+/* ---------- Loading / empty ---------- */
+.map-overlay {
+  position:absolute; inset:0; z-index:40; display:none;
+  align-items:center; justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(238,241,246,.86); backdrop-filter:blur(3px);
+}
+.map-overlay.show { display:flex; }
+.map-spinner {
+  width:30px; height:30px; border-radius:50%;
+  border:3px solid rgba(99,102,241,.22); border-top-color:var(--primary);
+  animation:mapspin .8s linear infinite;
+}
+@keyframes mapspin { to { transform:rotate(360deg); } }
+.map-overlay .mo-t { font-size:.82rem; font-weight:700; color:var(--text); }
+.map-overlay .mo-s { font-size:.72rem; color:var(--text2); }
+
+.map-err {
+  position:absolute; inset:0; z-index:41; display:none;
+  align-items:center; justify-content:center; flex-direction:column; gap:10px;
+  background:rgba(255,255,255,.95); padding:30px; text-align:center;
+}
+.map-err.show { display:flex; }
+.map-err .me-ico { font-size:2rem; }
+.map-err .me-t { font-size:.92rem; font-weight:800; color:var(--text); }
+.map-err .me-s { font-size:.78rem; color:var(--text2); max-width:420px; line-height:1.55; }
+
+/* ---------- Responsive ---------- */
+@media (max-width:1100px) {
+  .map-side { width:240px; }
+  .map-side.collapsed { margin-left:-240px; }
+  .map-detail { width:300px; margin-right:-300px; }
+}
+@media (max-width:820px) {
+  .map-side { position:absolute; left:0; top:0; bottom:0; z-index:30; box-shadow:var(--shadow-lg); }
+  .map-side.collapsed { margin-left:0; transform:translateX(-100%); }
+  .map-side:not(.collapsed) { transform:translateX(0); }
+  .map-detail { position:absolute; right:0; top:0; bottom:0; z-index:31; box-shadow:var(--shadow-lg); }
+  .map-minimap { display:none !important; }
+  .map-bar { flex-wrap:wrap; height:auto; padding:8px 10px; gap:8px; }
+  .map-search { max-width:none; order:5; flex-basis:100%; }
+}
+@media (max-width:600px) {
+  body { overflow-x:hidden; }
+  header { height:92px; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-rows:38px 42px; gap:4px 6px; padding:4px 8px; }
+  .logo { grid-column:1; grid-row:1; font-size:.86rem; }
+  .header-actions { grid-column:2; grid-row:1; gap:3px; }
+  .header-actions button { padding:5px 7px; font-size:.68rem; }
+  .nav { grid-column:1 / -1; grid-row:2; min-width:0; width:100%; margin:0; justify-content:space-around; overflow-x:auto; }
+  .nav-item { padding:5px 7px; font-size:.7rem; }
+  .search-wrap { display:none; }
+  .main { height:calc(100vh - 92px); }
+}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="logo-icon">◈</div><span>Codebase</span> Analyzer</div>
+  <nav class="nav" id="mainNav">
+    <button class="nav-item active" data-page="dashboard">Dashboard</button>
+    <button class="nav-item" data-page="architecture">Architecture</button>
+    <button class="nav-item" data-page="modules">Modules</button>
+    <button class="nav-item" data-page="graph">Graph</button>
+    <button class="nav-item" data-page="impact">Impact</button>
+    <button class="nav-item" data-page="chat">AI Chat</button>
+  </nav>
+  <div class="search-wrap">
+    <span class="si">⌕</span>
+    <input id="gSearch" placeholder="Search files, functions..." oninput="doSearch(this.value)">
+    <div id="searchDD"></div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dirInput').click()">📁 Upload</button>
+    <input type="file" id="dirInput" webkitdirectory multiple style="display:none" onchange="scanFolder(this)">
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importInput').click()">📥 Import</button>
+    <input type="file" id="importInput" class="import-input" accept=".json" onchange="importJSON(this)">
+    <button class="btn btn-primary btn-sm" onclick="exportJSON()">Export</button>
+  </div>
+</header>
+
+<div class="main" id="mainArea">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div id="dashContent"></div>
+  </div>
+
+  <!-- ARCHITECTURE -->
+  <div class="page" id="page-architecture">
+    <h2 style="font-size:1rem;margin-bottom:4px">Architecture Overview</h2>
+    <p style="font-size:.72rem;color:var(--text2);margin-bottom:12px">This is the big picture of your project. Each coloured block is a <strong>module</strong> (a folder). Arrows show which modules use which — just like roads connecting towns on a map. Click a module to open it.</p>
+    <div id="archContent"></div>
+  </div>
+
+  <!-- MODULES -->
+  <div class="page" id="page-modules">
+    <div id="modListView">
+      <h2 style="font-size:1rem;margin-bottom:4px">Modules</h2>
+      <p style="font-size:.72rem;color:var(--text2);margin-bottom:10px">Files grouped by category.</p>
+      <div id="modGrid" class="module-grid"></div>
+    </div>
+    <div class="mod-detail" id="modDetailView">
+      <span class="mod-back" onclick="backToModules()">← Back to Modules</span>
+      <div id="modDetailContent"></div>
+    </div>
+  </div>
+
+  <!-- GRAPH -->
+  <div class="page" id="page-graph">
+    <!-- Toolbar -->
+    <div class="map-bar">
+      <div class="map-bar-project" id="mapProjectChip">
+        <div class="mpp-ico">◈</div>
+        <div class="mpp-txt">
+          <div class="mpp-name" id="mapProjName">Codebase</div>
+          <div class="mpp-meta" id="mapProjMeta">No project loaded</div>
+        </div>
+      </div>
+
+      <div class="map-search" id="mapSearchWrap">
+        <span class="ms-ico">⌕</span>
+        <input id="mapSearch" type="text" placeholder="Search files, functions, classes, routes…" autocomplete="off" spellcheck="false">
+        <button class="ms-clear" id="mapSearchClear" title="Clear" onclick="mapClearSearch()">✕</button>
+      </div>
+
+      <div class="map-tools">
+        <button class="map-btn" id="mapToggleSide" onclick="mapToggleSide()" title="Toggle explorer panel"><span class="mb-ico">▤</span><span>Explorer</span></button>
+        <button class="map-btn" onclick="mapFit()" title="Fit everything (0)"><span class="mb-ico">⛶</span><span>Fit</span></button>
+        <button class="map-btn icon" onclick="mapCenterSelection()" title="Focus selected node (F)" aria-label="Focus selected node">◎</button>
+        <button class="map-btn icon on" id="mapMiniBtn" onclick="mapToggleMinimap()" title="Toggle minimap">▣</button>
+        <button class="map-btn icon on" id="mapLabelsBtn" onclick="mapToggleLabels()" title="Toggle labels">🔤</button>
+      </div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="map-shell">
+      <!-- Left: explorer / filters / search -->
+      <div class="map-side" id="mapSide">
+        <div class="map-side-tabs">
+          <button class="map-side-tab active" data-mpane="explore" onclick="mapPane('explore')">Explore</button>
+          <button class="map-side-tab" data-mpane="filter" onclick="mapPane('filter')">Filters</button>
+          <button class="map-side-tab" data-mpane="results" onclick="mapPane('results')">Results</button>
+        </div>
+        <div class="map-side-body">
+
+          <div class="map-pane active" id="mpane-explore">
+            <div class="msec">
+              <div class="msec-h"><span>Current view</span><span id="mapScopeKind" class="mrow-badge">project</span></div>
+              <div id="mapScopeList"></div>
+            </div>
+            <div class="msec">
+              <div class="msec-h"><span>Modules</span><button class="msec-act" onclick="mapGoProject()">View all</button></div>
+              <div id="mapModuleList"></div>
+            </div>
+          </div>
+
+          <div class="map-pane" id="mpane-filter">
+            <div class="msec">
+              <div class="msec-h"><span>Scope</span></div>
+              <div class="mfilter">
+                <div class="mradio" id="mapScopeMode">
+                  <label><input type="radio" name="mapScopeMode" value="scope" checked onchange="mapSetScopeMode(this.value)"> Current scope only</label>
+                  <label><input type="radio" name="mapScopeMode" value="neighborhood" onchange="mapSetScopeMode(this.value)"> Neighborhood of selection</label>
+                  <label><input type="radio" name="mapScopeMode" value="project" onchange="mapSetScopeMode(this.value)"> Entire project</label>
+                </div>
+              </div>
+            </div>
+            <div class="msec">
+              <div class="msec-h"><span>Node types</span><button class="msec-act" onclick="mapResetFilters()">Reset</button></div>
+              <div class="md-note" style="margin:0 2px 6px">Tap a chip to hide that kind of node.</div>
+              <div class="mchips" id="mapTypeChips"></div>
+            </div>
+            <div class="msec">
+              <div class="msec-h"><span>Relationship types</span></div>
+              <div class="mchips" id="mapRelChips"></div>
+            </div>
+            <div class="msec">
+              <div class="msec-h"><span>Module</span></div>
+              <select class="mselect" id="mapModuleFilter" onchange="mapSetModuleFilter(this.value)"></select>
+            </div>
+            <div class="msec">
+              <div class="msec-h"><span>Direction</span></div>
+              <div class="mradio" id="mapDirMode">
+                <label><input type="radio" name="mapDir" value="all" checked onchange="mapSetDir(this.value)"> Both directions</label>
+                <label><input type="radio" name="mapDir" value="in" onchange="mapSetDir(this.value)"> Incoming only</label>
+                <label><input type="radio" name="mapDir" value="out" onchange="mapSetDir(this.value)"> Outgoing only</label>
+              </div>
+            </div>
+            <button class="mbtn-wide" onclick="mapResetFilters()">Reset all filters</button>
+          </div>
+
+          <div class="map-pane" id="mpane-results">
+            <div class="msec">
+              <div class="msec-h"><span id="mapResultsTitle">Search results</span></div>
+              <div id="mapResultsList"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Canvas -->
+      <div class="map-canvas" id="mapCanvas">
+        <div id="fullCy"></div>
+
+        <div class="map-float map-bc" id="mapBreadcrumb"></div>
+
+        <div class="map-float map-legend" id="mapLegend">
+          <div class="mlg-h" onclick="document.getElementById('mapLegend').classList.toggle('open')">
+            <span>Legend</span><span>▾</span>
+          </div>
+          <div class="mlg-body">
+            <div class="mlg-row"><span class="mlg-sw" style="background:#fff;border:1.5px solid #64748b"></span>File</div>
+            <div class="mlg-row"><span class="mlg-sw" style="background:#16a34a"></span>Function</div>
+            <div class="mlg-row"><span class="mlg-sw" style="background:#f59e0b"></span>Class</div>
+            <div class="mlg-row"><span class="mlg-sw" style="background:#ef4444"></span>API route</div>
+            <div class="mlg-row"><span class="mlg-sw" style="background:#6366f1"></span>Model</div>
+            <div class="mlg-row"><span class="mlg-ln" style="border-color:#94a3b8"></span>Import</div>
+            <div class="mlg-row"><span class="mlg-ln" style="border-color:#16a34a"></span>Call</div>
+            <div class="mlg-row"><span class="mlg-ln" style="border-color:#a855f7;border-top-style:dashed"></span>Inheritance</div>
+          </div>
+        </div>
+
+        <div class="map-float map-ctl">
+          <button onclick="expZoomStep(1)" title="Zoom in (+)">+</button>
+          <div class="mc-zoom" id="expZoomPct">100%</div>
+          <button onclick="expZoomStep(-1)" title="Zoom out (−)">−</button>
+          <button onclick="mapFit()" title="Fit to view (0)">⛶</button>
+          <button onclick="expReset()" title="Reset view">⟳</button>
+        </div>
+
+        <div class="map-float map-minimap" id="mapMinimap">
+          <div class="mm-h"><span>MINIMAP</span><span id="mapMiniMeta"></span></div>
+          <div id="mapMiniCy"></div>
+        </div>
+
+        <div class="map-float map-status">
+          <span id="expNodeCount">0 nodes</span>
+          <span id="mapScopeHint">Scroll to zoom · drag to pan · click to inspect</span>
+        </div>
+
+        <div class="map-hint" id="mapHint"></div>
+
+        <div class="map-overlay" id="mapLoading"><div class="map-spinner"></div><div class="mo-t">Building your map…</div><div class="mo-s" id="mapLoadingSub">Indexing files and relationships</div></div>
+
+        <div class="map-err" id="mapError">
+          <div class="me-ico">🗺️</div>
+          <div class="me-t">No codebase loaded yet</div>
+          <div class="me-s">Upload your project or paste some code, then explore it here like a map. Zoom in, pick a module, and follow the lines to see how things connect.</div>
+          <button class="btn btn-primary" onclick="document.getElementById('dirInput').click()">📁 Upload Project</button>
+        </div>
+      </div>
+
+      <!-- Right: contextual details -->
+      <div class="map-detail" id="mapDetail">
+        <div class="map-detail-hd">
+          <div class="map-detail-ico" id="mdIcon">◈</div>
+          <div class="map-detail-tt">
+            <div class="mdt-name" id="mdName">—</div>
+            <div class="mdt-type" id="mdType">Nothing selected</div>
+          </div>
+          <button class="map-detail-x" onclick="mapCloseDetail()" title="Close">✕</button>
+        </div>
+        <div class="map-detail-bd" id="mdBody"></div>
+      </div>
+    </div>
+
+    <!-- Tutorial Overlay (inside page-graph so it doesn't cover other pages) -->
+    <div class="graph-tutorial" id="expTutorial">
+      <div class="gt-content">
+        <div class="gt-icon">◈</div>
+        <div class="gt-title">Explore Your Codebase — Like a Map</div>
+        <div class="gt-steps">
+          <div class="gt-step"><span class="gt-num">1</span> <strong>Search</strong> any file, function, class or route</div>
+          <div class="gt-step"><span class="gt-num">2</span> <strong>Click</strong> a module or file to drill in · double-click to open</div>
+          <div class="gt-step"><span class="gt-num">3</span> <strong>Follow the lines</strong> to see imports, calls and inheritance</div>
+          <div class="gt-step"><span class="gt-num">4</span> <strong>Filter</strong> by type, module or direction to cut through noise</div>
+        </div>
+        <button class="btn btn-primary" onclick="dismissTutorial()">Got it!</button>
+        <label style="display:flex;align-items:center;gap:4px;margin-top:6px;font-size:.62rem;color:var(--text2);cursor:pointer">
+          <input type="checkbox" id="tutorialDontShow"> Don't show again
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPACT -->
+  <div class="page" id="page-impact">
+    <h2 style="font-size:1rem;margin-bottom:4px">Impact & Dead Code</h2>
+    <p style="font-size:.72rem;color:var(--text2);margin-bottom:10px">See what breaks if you change something, or find unused code.</p>
+    <div class="impact-grid">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow-sm)">
+        <div class="section-title">💥 Impact Analysis</div>
+        <p style="font-size:.68rem;color:var(--text2);margin-bottom:8px">Pick a file or function below — we'll show everything that would break if you changed it. No IDs needed. 👇</p>
+        <div class="impact-input" style="position:relative">
+          <input id="impactId" placeholder="🔍 Type a file or function name..." autocomplete="off" oninput="impactSearch(this.value)" onkeydown="if(event.key==='Enter')doImpact()">
+          <button class="btn btn-primary" onclick="doImpact()">Analyze</button>
+          <div id="impactDD" class="impact-dd"></div>
+        </div>
+        <div id="impactR"></div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;box-shadow:var(--shadow-sm)">
+        <div class="section-title">🗑️ Dead Code</div>
+        <button class="btn btn-ghost" onclick="findDead()" style="margin-bottom:6px">🔎 Find Dead Code</button>
+        <div id="deadR"></div>
+      </div>
+    </div>
+    <div class="impact-viz"><div id="impactCy"></div></div>
+  </div>
+
+  <!-- AI CHAT -->
+  <div class="page" id="page-chat">
+    <h2 style="font-size:1rem;margin-bottom:4px">AI Assistant</h2>
+    <p style="font-size:.72rem;color:var(--text2);margin-bottom:10px">Ask questions about your codebase.</p>
+    <div class="chat-container">
+      <div class="chat-msgs" id="chatMsgs">
+        <div class="chat-msg ai"><div class="cm-b">👋 Ask me anything about your project — how login works, which files are biggest, where dead code is, etc.</div></div>
+      </div>
+      <div class="chat-input-area"><input id="chatInput" placeholder="Ask about your codebase..." onkeydown="if(event.key==='Enter')askAI()"><button class="btn btn-primary" onclick="askAI()">Ask</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL OVERLAY -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="do-hdr"><div class="do-title" id="doTitle">Details</div><div class="do-close" onclick="closeOverlay()">✕</div></div>
+  <div class="do-body" id="doBody"></div>
+</div>
+
+<div class="explain-panel" id="explainPanel">
+  <span class="ep-close" onclick="document.getElementById('explainPanel').classList.remove('show')">✕</span>
+  <div class="ep-title">💡 Flow Explanation</div>
+  <div id="explainBody"></div>
+</div>
+
+<script>
+const API = '';
+var cy, graphData = {nodes:[],edges:[]}, graphEngine = null, loadedCode = {}, uploaded = false, modCyInstance = null, impactCyInstance = null, graphSummary = null;
+const TC = {file:'#6366f1',function:'#00D4B0',class:'#f59e0b',api:'#ec4899',model:'#10b981',annotation:'#8b5cf6'};
+
+// ===== NAVIGATION =====
+document.querySelectorAll('.nav-item').forEach(b=>{
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    const pg = document.getElementById('page-'+this.dataset.page);
+    if(pg) pg.classList.add('active');
+    if(this.dataset.page==='graph') setTimeout(()=>{ try{
+      if(!window.expCy) initExpCy();
+      const side = document.getElementById('mapSide');
+      if (side && window.matchMedia('(max-width:820px)').matches && !side.dataset.mobileInit) {
+        side.classList.add('collapsed');
+        side.dataset.mobileInit = '1';
+      }
+      expCy.resize();
+      mapUpdateSidePanel();
+      if(!expCy.elements().length){ mapHasInitialFit = true; mapGoProject(); }
+      else if(!mapHasInitialFit){ mapHasInitialFit = true; expFit(60); }
+      else { mapSyncMinimap(); }
+    }catch(e){} },100);
+    else if(this.dataset.page==='architecture'){
+      // Rebuild on entry: it may have been created while the page was hidden
+      // (0-size container), which renders blank.
+      setTimeout(function(){ try{ renderArchitecture(); refitVisibleGraph(); }catch(e){} }, 120);
+    }
+    else if(this.dataset.page==='modules'){
+      setTimeout(function(){ try{ if(graphEngine) renderModules(); refitVisibleGraph(); }catch(e){} }, 120);
+    }
+    else if(this.dataset.page==='impact')
+      setTimeout(refitVisibleGraph, 120);
+
+  });
+});
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', function() {
+  fetch(API+'/api/graph').then(function(r){return r.json();}).then(function(d){
+    if (d && d.nodes && d.nodes.length) {
+      rebuildEngine(d.nodes, d.edges);
+      loadGraph(d, {});
+    } else {
+      renderDashboard();
+    }
+  }).catch(function(){ renderDashboard(); });
+});
+
+// ===== DASHBOARD =====
+function renderDashboard() {
+  const c = document.getElementById('dashContent');
+  if (!uploaded) {
+    c.innerHTML = `
+      <div class="hero fade-in">
+        <div class="hero-top">
+          <div>
+            <h1>Codebase Analyzer</h1>
+            <p>Upload a project to analyze its architecture, dependencies, health, and more.</p>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:600px;margin:30px auto">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center;cursor:pointer;box-shadow:var(--shadow-sm);transition:transform .15s" onclick="document.getElementById('dirInput').click()">
+          <div style="font-size:2rem;margin-bottom:8px">📁</div>
+          <div style="font-weight:500;font-size:.85rem">Upload Project</div>
+          <div style="font-size:.65rem;color:var(--text2);margin-top:4px">JS / TS / Java / Python</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px 24px;text-align:center;cursor:pointer;box-shadow:var(--shadow-sm);transition:transform .15s" onclick="showPasteView()">
+          <div style="font-size:2rem;margin-bottom:8px">✏️</div>
+          <div style="font-weight:500;font-size:.85rem">Paste Code</div>
+          <div style="font-size:.65rem;color:var(--text2);margin-top:4px">Quick analysis</div>
+        </div>
+      </div>`;
+    return;
+  }
+  const s = graphSummary || graphEngine.getSummary();
+  const health = calcHealth(s);
+  const modules = groupByModule();
+  const langDist = getLanguageDistribution();
+  const topFiles = getTopFiles(8);
+
+  c.innerHTML = `
+    <div class="hero fade-in">
+      <div class="hero-top">
+        <div>
+          <h1>${getProjectName()}</h1>
+          <p>${s.files} files · ${s.totalNodes} nodes · ${s.totalEdges} edges</p>
+        </div>
+        <div class="hero-score"><div class="big">${health.score}</div><div class="lbl">Health</div></div>
+      </div>
+    </div>
+    <div class="analytics-grid fade-in" id="analyticsGrid">
+      <div class="analytics-card"><div class="ac-l">Files</div><div class="ac-v">${s.files}</div><span class="ac-stat ac-up">${modules.length} dirs</span><canvas class="ac-spark" data-series="files"></canvas></div>
+      <div class="analytics-card"><div class="ac-l">Functions</div><div class="ac-v">${s.nodeTypes?.function||0}</div><span class="ac-stat ac-up">${s.apis||0} APIs</span><canvas class="ac-spark" data-series="funcs"></canvas></div>
+      <div class="analytics-card"><div class="ac-l">Classes</div><div class="ac-v">${s.nodeTypes?.class||0}</div><span class="ac-stat ${s.nodeTypes?.model>0?'ac-up':'ac-neutral'}">${s.nodeTypes?.model||0} models</span><canvas class="ac-spark" data-series="classes"></canvas></div>
+      <div class="analytics-card"><div class="ac-l">Dependencies</div><div class="ac-v">${s.totalEdges}</div><span class="ac-stat ac-up">${s.totalNodes-s.files} nodes</span><canvas class="ac-spark" data-series="edges"></canvas></div>
+    </div>
+    <div class="dash-row">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)">
+        <div class="section-title">📊 Code Health</div>
+        <div class="health-list">
+          <div class="health-row"><span class="hl">Structure</span><div class="hb"><div class="hf" style="width:${health.structure}%;background:var(--primary)"></div></div><span class="hp">${health.structure}%</span></div>
+          <div class="health-row"><span class="hl">Modularity</span><div class="hb"><div class="hf" style="width:${health.modularity}%;background:var(--accent)"></div></div><span class="hp">${health.modularity}%</span></div>
+          <div class="health-row"><span class="hl">API Design</span><div class="hb"><div class="hf" style="width:${health.api}%;background:var(--green)"></div></div><span class="hp">${health.api}%</span></div>
+          <div class="health-row"><span class="hl">Dead Code</span><div class="hb"><div class="hf" style="width:${100-health.dead}%;background:${health.dead>20?'var(--red)':'var(--green)'}"></div></div><span class="hp">${100-health.dead}%</span></div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)">
+        <div class="section-title">🌐 Languages</div>
+        <div class="donut-wrap">
+          <div><canvas id="langDonut" width="90" height="90"></canvas></div>
+          <div class="donut-legend" id="langLegend"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dash-row">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)">
+        <div class="section-title">🔥 Top Files</div>
+        <div id="topFilesList">${renderTopFiles(topFiles)}</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow-sm)">
+        <div class="section-title">📦 Modules (${modules.length})</div>
+        ${modules.slice(0,8).map(m => 
+          `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;font-size:.8rem;cursor:pointer;border-bottom:1px solid var(--border)" onclick="switchNav('modules')">
+            <span>${m.icon||'📁'} ${m.name}</span>
+            <span style="color:var(--text2);font-size:.6rem">${m.count} files</span>
+          </div>`
+        ).join('')}
+      </div>
+    </div>`;
+  drawSparklines();
+  drawDonut(langDist);
+}
+
+function getLanguageDistribution() {
+  const lang={};
+  (graphEngine.nodes.filter(n=>n.type==='file')||[]).forEach(f=>{
+    const l=f.language||'unk'; lang[l]=(lang[l]||0)+1;
+  });
+  return Object.entries(lang).map(([k,v])=>({name:k,count:v})).sort((a,b)=>b.count-a.count);
+}
+
+function getTopFiles(n) {
+  const files=graphEngine.nodes.filter(n=>n.type==='file');
+  return files.map(f=>({file:f,conn:(graphEngine.getIncoming(f.id)||[]).length+(graphEngine.getOutgoing(f.id)||[]).length})).sort((a,b)=>b.conn-a.conn).slice(0,n);
+}
+
+function renderTopFiles(topFiles) {
+  if(!topFiles.length) return '<div style="font-size:.65rem;color:var(--text2)">No files loaded</div>';
+  const maxConn=Math.max(...topFiles.map(t=>t.conn),1);
+  return topFiles.map(t=>`<div class="top-file-item" onclick="showNodeDetail('${jsq(t.file.id)}')">
+    <div class="tfi-n"><span>📄 ${t.file.label}</span></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0"><span class="tfi-c">${t.conn}</span><div style="width:40px;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden"><div class="tfi-bar" style="width:${(t.conn/maxConn*100).toFixed(0)}%"></div></div></div>
+  </div>`).join('');
+}
+
+function drawSparklines() {
+  document.querySelectorAll('.ac-spark').forEach(c=>{
+    const ctx=c.getContext('2d'), w=c.width=120, h=c.height=24;
+    const n=Math.max(c.closest('.analytics-card').previousElementSibling?8:5,3);
+    const vals=Array.from({length:n},()=>Math.random()*h*0.8+h*0.1);
+    ctx.strokeStyle='var(--primary)'; ctx.lineWidth=1.2; ctx.beginPath();
+    vals.forEach((v,i)=>{const x=i/(n-1)*w,y=h-v; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}); ctx.stroke();
+    ctx.fillStyle='var(--primary)'; ctx.globalAlpha=0.06;
+    ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+  });
+}
+
+function drawDonut(data) {
+  const c=document.getElementById('langDonut');
+  if(!c||!data.length) return;
+  const ctx=c.getContext('2d'), cx=45, cy=45, r=32, gap=0.04;
+  const palette=['#00D4B0','#6366f1','#f59e0b','#ec4899','#10b981','#8b5cf6','#ef4444','#67E8F9'];
+  const total=data.reduce((s,d)=>s+d.count,0);
+  const legend=document.getElementById('langLegend');
+  legend.innerHTML='';
+  let angle=-Math.PI/2;
+  data.forEach((d,i)=>{
+    const frac=d.count/total, sweep=frac*Math.PI*2-gap;
+    const col=palette[i%palette.length];
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,angle,angle+sweep); ctx.closePath(); ctx.fillStyle=col; ctx.fill();
+    angle+=sweep+gap;
+    legend.innerHTML+=`<div class="dl-item"><span class="dl-dot" style="background:${col}"></span>${escapeHtml(d.name)} <span style="color:var(--text2)">(${d.count})</span></div>`;
+  });
+  ctx.beginPath(); ctx.arc(cx,cy,r*0.5,0,Math.PI*2); ctx.fillStyle='#ffffff'; ctx.fill();
+}
+
+function calcHealth(s) {
+  const fn = s.nodeTypes?.function||0;
+  const cls = s.nodeTypes?.class||0;
+  const apis = s.apis||0;
+  const files = s.files||1;
+  const structure = Math.min(100, Math.round(70 + (fn+cls)/files*3));
+  const modularity = Math.min(100, Math.round(60 + (Object.keys(groupByDir()).length)*5));
+  const api = Math.min(100, Math.round(50 + apis*3));
+  const dead = Math.min(100, (s.deadFunctionCount||0)/Math.max(1,fn)*100);
+  const score = Math.round((structure+modularity+api+(100-dead))/4);
+  return {score,structure,modularity,api,dead:Math.round(dead)};
+}
+
+function getProjectName() {
+  const files = graphEngine.nodes.filter(n=>n.type==='file');
+  if(!files.length) return 'My Project';
+  const name = files[0].id.split('/')[0];
+  return name.charAt(0).toUpperCase()+name.slice(1);
+}
+
+function groupByDir() {
+  const d={};
+  (graphEngine.nodes.filter(n=>n.type==='file')||[]).forEach(f=>{
+    const p=f.id.split('/'),dir=p.length>1?p.slice(0,-1).join('/'):'(root)';
+    if(!d[dir]) d[dir]=[]; d[dir].push(f);
+  });
+  return d;
+}
+
+function groupByModule() {
+  const cats={};
+  ((graphEngine && graphEngine.nodes) || []).filter(n=>n.type==='file').forEach(f=>{
+    const dir=mapModuleName(f.file || f.id);
+    if(!cats[dir]) cats[dir]=[];
+    cats[dir].push(f);
+  });
+  return Object.entries(cats).map(([k,v])=>({name:k,count:v.length,icon:getModuleIcon(k)})).sort((a,b)=>b.count-a.count);
+}
+
+function getModuleIcon(name) {
+  const icons={'src':'📦','app':'📱','server':'🖥️','client':'🎨','api':'⚡','config':'⚙️','docs':'📄','test':'🧪','scripts':'🔧','utils':'🔧','lib':'📚','components':'🧩','routes':'🛣️','controllers':'🎮','models':'🗃️','services':'⚡','middleware':'🔗','auth':'🔐','db':'🗄️','public':'🌐','assets':'🖼️','styles':'🎨'};
+  return icons[name.toLowerCase()]||'📁';
+}
+
+function getModuleColor(name) {
+  const palette = [
+    { main:'#4f46e5', light:'#818cf8', road:'#c7d2fe', glow:'rgba(79,70,229,.22)' },
+    { main:'#0284c7', light:'#38bdf8', road:'#bae6fd', glow:'rgba(2,132,199,.22)' },
+    { main:'#059669', light:'#34d399', road:'#a7f3d0', glow:'rgba(5,150,105,.22)' },
+    { main:'#d97706', light:'#fbbf24', road:'#fde68a', glow:'rgba(217,119,6,.22)' },
+    { main:'#db2777', light:'#f472b6', road:'#fbcfe8', glow:'rgba(219,39,119,.22)' },
+    { main:'#7c3aed', light:'#a78bfa', road:'#ddd6fe', glow:'rgba(124,58,237,.22)' }
+  ];
+  const key = String(name || 'other');
+  const hash = Array.from(key).reduce((sum, ch) => ((sum * 31) + ch.charCodeAt(0)) >>> 0, 0);
+  return palette[hash % palette.length];
+}
+
+// Small language glyph shown on each file card, so file types read at a glance.
+function fileGlyph(id) {
+  const e = String(id).toLowerCase().split('.').pop();
+  const m = { js:'🟨', jsx:'🟨', ts:'🔷', tsx:'🔷', mjs:'🟨', cjs:'🟨',
+    py:'🐍', java:'☕', kt:'🟪', go:'🐹', rs:'🦀', rb:'💎', php:'🐘',
+    c:'🔵', h:'🔵', cpp:'🔵', cc:'🔵', hpp:'🔵', cs:'🟩', swift:'🟧',
+    json:'🔶', yml:'🧾', yaml:'🧾', md:'📄', txt:'📄', html:'🌐', css:'🎨',
+    scss:'🎨', sql:'🗄️', sh:'🖥️', ps1:'🖥️', toml:'🧾', xml:'🧾', ipynb:'📓' };
+  return m[e] || '📄';
+}
+
+// ===== CODEBASE MAP EXPLORER =====
+let expCy = null;
+let mapMiniCy = null;
+let expPath = [];
+let mapHasInitialFit = false;
+
+const MAP_TC = { file:'#2563eb', function:'#16a34a', class:'#f59e0b', api:'#ef4444', model:'#6366f1', annotation:'#8b5cf6', module:'#64748b' };
+const MAP_TC_LIGHT = { file:'#dbeafe', function:'#dcfce7', class:'#fef3c7', api:'#fee2e2', model:'#e0e7ff', annotation:'#ede9fe', module:'#e2e8f0' };
+const MAP_REL = { imports:'#94a3b8', exports:'#0ea5e9', defines:'#cbd5e1', calls:'#16a34a', extends:'#a855f7', implements:'#c084fc', annotates:'#8b5cf6' };
+const MAP_REL_LABEL = { imports:'imports', exports:'exports', defines:'defines', calls:'calls', extends:'extends', implements:'implements', annotates:'annotates' };
+const MAP_TYPE_LABEL = { file:'File', function:'Function', class:'Class', api:'API route', model:'Model', annotation:'Annotation', module:'Module' };
+
+// ---------- index (rebuilt whenever the project graph changes) ----------
+var mapIdx = null;
+
+function mapModuleName(fileId) {
+  if (!fileId) return 'other';
+  const p = String(fileId).split('/');
+  return p.length > 1 ? p[0] : '(root)';
+}
+
+function moduleOfId(id) {
+  return mapModuleName(String(id || '').split('::')[0]);
+}
+
+function mapBuildIndex() {
+  const nodes = (graphEngine && graphEngine.nodes) || [];
+  const edges = (graphEngine && graphEngine.edges) || [];
+  const idx = {
+    nodes, edges,
+    byId: new Map(),
+    files: [],
+    modules: new Map(),       // module name -> [fileId]
+    fileSymbols: new Map(),   // fileId -> [symbol node]
+    symbolFile: new Map(),   // symbolId -> fileId
+    outEdges: new Map(),      // nodeId -> [edge]
+    inEdges: new Map(),       // nodeId -> [edge]
+    fileEdges: [],            // file -> file dependency edges (imports/exports)
+    moduleEdges: []           // aggregated module -> module dependency
+  };
+  nodes.forEach(n => idx.byId.set(n.id, n));
+  nodes.forEach(n => {
+    if (n.type === 'file') {
+      idx.files.push(n);
+      const m = mapModuleName(n.file || n.id);
+      if (!idx.modules.has(m)) idx.modules.set(m, []);
+      idx.modules.get(m).push(n.id);
+    } else {
+      const f = n.file || n.parent || (n.id.split('::')[0]);
+      if (!idx.fileSymbols.has(f)) idx.fileSymbols.set(f, []);
+      idx.fileSymbols.get(f).push(n);
+      idx.symbolFile.set(n.id, f);
+    }
+  });
+  edges.forEach(e => {
+    if (!idx.outEdges.has(e.from)) idx.outEdges.set(e.from, []);
+    idx.outEdges.get(e.from).push(e);
+    if (!idx.inEdges.has(e.to)) idx.inEdges.set(e.to, []);
+    idx.inEdges.get(e.to).push(e);
+    if ((e.type === 'imports' || e.type === 'exports')
+        && idx.byId.get(e.from) && idx.byId.get(e.from).type === 'file'
+        && idx.byId.get(e.to) && idx.byId.get(e.to).type === 'file') {
+      idx.fileEdges.push(e);
+    }
+  });
+  // module -> module dependencies (derived from real file import edges)
+  const mAgg = new Map();
+  idx.fileEdges.forEach(e => {
+    const a = mapModuleName(e.from), b = mapModuleName(e.to);
+    if (a === b) return;
+    const key = a + ' ' + b;
+    if (!mAgg.has(key)) mAgg.set(key, { from: a, to: b, count: 0 });
+    mAgg.get(key).count++;
+  });
+  idx.moduleEdges = [...mAgg.values()].sort((x, y) => y.count - x.count);
+  mapIdx = idx;
+  return idx;
+}
+
+function mapIndex() {
+  if (!mapIdx) mapBuildIndex();
+  return mapIdx;
+}
+
+// ---------- scope ----------
+var mapScope = { kind:'project', id:null };
+var mapSel = null;              // selected node id
+var mapSelEdge = null;
+var mapFilters = {
+  types: new Set(),             // empty = all allowed
+  rels: new Set(),              // empty = all allowed
+  module: 'all',
+  dir: 'all',
+  mode: 'scope'                 // scope | neighborhood | project
+};
+var mapLabelsOn = true;
+var mapCurrent = { nodes:[], edges:[] };
+
+function mapCollect(scope) {
+  const idx = mapIndex();
+  const out = { nodes:[], edges:[], outside:new Set(), root:null };
+  if (!idx.nodes.length) return out;
+
+  if (scope.kind === 'project') {
+    const names = [...idx.modules.keys()].sort((a,b) => idx.modules.get(b).length - idx.modules.get(a).length || a.localeCompare(b));
+    names.forEach(name => {
+      out.nodes.push({
+        id: 'mod:' + name, label: name, type: 'module',
+        module: name, fileCount: idx.modules.get(name).length,
+        symbolCount: idx.modules.get(name).reduce((s,fid) => s + (idx.fileSymbols.get(fid) || []).length, 0)
+      });
+    });
+    idx.moduleEdges.forEach(me => {
+      out.edges.push({
+        id: 'me:' + me.from + '>' + me.to, from: 'mod:' + me.from, to: 'mod:' + me.to,
+        type: 'imports', label: me.count + ' import' + (me.count > 1 ? 's' : ''), weight: me.count, _pseudo: true
+      });
+    });
+    return out;
+  }
+
+  if (scope.kind === 'module') {
+    const files = idx.modules.get(scope.id) || [];
+    const inMod = new Set(files);
+    const seen = new Set();
+    files.forEach(fid => { const n = idx.byId.get(fid); if (n) { out.nodes.push(n); seen.add(fid); } });
+    idx.fileEdges.forEach(e => {
+      const pairs = [[e.from, e.to], [e.to, e.from]];
+      pairs.forEach(([inside, other]) => {
+        if (inMod.has(inside) && !inMod.has(other) && idx.byId.has(other)) {
+          if (!seen.has(other)) { out.nodes.push(idx.byId.get(other)); seen.add(other); out.outside.add(other); }
+        }
+      });
+    });
+    out.edges = idx.fileEdges.filter(e => seen.has(e.from) && seen.has(e.to));
+    return out;
+  }
+
+  if (scope.kind === 'file') {
+    const fileNode = idx.byId.get(scope.id);
+    if (!fileNode) return out;
+    out.nodes.push(fileNode);
+    out.root = fileNode.id;
+    const syms = idx.fileSymbols.get(fileNode.id) || [];
+    syms.forEach(s => out.nodes.push(s));
+    const seen = new Set([fileNode.id].concat(syms.map(s => s.id)));
+    // Show real cross-file symbol links (calls, inheritance, implementations,
+    // etc.) beside the selected file, not only its import declarations.
+    idx.edges.forEach(e => {
+      if (seen.has(e.from) && idx.byId.has(e.to)) {
+        const target = idx.byId.get(e.to);
+        if (target.type !== 'file' && !seen.has(target.id)) {
+          out.nodes.push(target); seen.add(target.id); out.outside.add(target.id);
+          const targetFile = target.file || target.parent;
+          if (targetFile && idx.byId.has(targetFile) && !seen.has(targetFile)) {
+            out.nodes.push(idx.byId.get(targetFile)); seen.add(targetFile); out.outside.add(targetFile);
+          }
+        }
+      }
+      if (seen.has(e.to) && idx.byId.has(e.from)) {
+        const source = idx.byId.get(e.from);
+        if (source.type !== 'file' && !seen.has(source.id)) {
+          out.nodes.push(source); seen.add(source.id); out.outside.add(source.id);
+          const sourceFile = source.file || source.parent;
+          if (sourceFile && idx.byId.has(sourceFile) && !seen.has(sourceFile)) {
+            out.nodes.push(idx.byId.get(sourceFile)); seen.add(sourceFile); out.outside.add(sourceFile);
+          }
+        }
+      }
+    });
+    idx.fileEdges.forEach(e => {
+      const pairs = [[e.from, e.to], [e.to, e.from]];
+      pairs.forEach(([inside, other]) => {
+        if (inside === fileNode.id && idx.byId.has(other) && idx.byId.get(other).type === 'file') {
+          if (!seen.has(other)) { out.nodes.push(idx.byId.get(other)); seen.add(other); out.outside.add(other); }
+        }
+      });
+    });
+    out.edges = idx.edges.filter(e => seen.has(e.from) && seen.has(e.to));
+    return out;
+  }
+
+  if (scope.kind === 'symbol') {
+    const s = idx.byId.get(scope.id);
+    if (!s) return out;
+    const seen = new Set();
+    const push = id => { if (idx.byId.has(id) && !seen.has(id)) { seen.add(id); out.nodes.push(idx.byId.get(id)); } };
+    push(s.id);
+    (idx.fileSymbols.get(idx.symbolFile.get(s.id) || s.file) || []).forEach(x => push(x.id));
+    (idx.inEdges.get(s.id) || []).forEach(e => push(e.from));
+    (idx.outEdges.get(s.id) || []).forEach(e => push(e.to));
+    out.edges = idx.edges.filter(e => seen.has(e.from) && seen.has(e.to));
+    out.root = s.id;
+    return out;
+  }
+  return out;
+}
+
+// ---------- filters ----------
+function mapApplyFilters(col) {
+  const idx = mapIndex();
+  const f = mapFilters;
+  let nodes = col.nodes.slice();
+
+  let outside = col.outside || new Set();
+  if (f.mode === 'project') {
+    const p = mapCollect({ kind:'project', id:null });
+    nodes = p.nodes.slice();
+    var edgesSrc = p.edges;
+    outside = new Set();
+  } else {
+    var edgesSrc = col.edges.slice();
+  }
+
+  if (f.mode === 'neighborhood' && mapSel) {
+    const s = mapSel;
+    const nb = new Set([s]);
+    (idx.outEdges.get(s) || []).forEach(e => nb.add(e.to));
+    (idx.inEdges.get(s) || []).forEach(e => nb.add(e.from));
+    nodes = nodes.filter(n => nb.has(n.id) || n.id === s);
+    edgesSrc = edgesSrc.filter(e => nb.has(e.from) && nb.has(e.to));
+  }
+
+  if (f.module && f.module !== 'all') {
+    const keep = new Set();
+    nodes.forEach(n => {
+      const m = n.type === 'module' ? n.module : mapModuleName(n.file || n.id);
+      if (m === f.module) keep.add(n.id);
+    });
+    edgesSrc = edgesSrc.filter(e => keep.has(e.from) || keep.has(e.to));
+    nodes = nodes.filter(n => keep.has(n.id) || n.id === mapSel);
+  }
+
+  if (f.types.size) {
+    nodes = nodes.filter(n => !f.types.has(n.type) || n.id === mapSel);
+  }
+  if (f.rels.size) {
+    edgesSrc = edgesSrc.filter(e => !f.rels.has(e.type));
+  }
+  if (f.dir !== 'all' && mapSel) {
+    edgesSrc = edgesSrc.filter(e => f.dir === 'in' ? e.to === mapSel : e.from === mapSel);
+  }
+
+  const present = new Set(nodes.map(n => n.id));
+  edgesSrc = edgesSrc.filter(e => present.has(e.from) && present.has(e.to));
+  return { nodes, edges: edgesSrc, outside, flat: col.flat };
+}
+
+// ---------- deterministic layered layout ----------
+function mapLayout(nodes, edges) {
+  const W = {}, H = {}, und = {}, dir = {}, indeg = {};
+  nodes.forEach(n => {
+    W[n.id] = n.type === 'module' ? 168 : (n.type === 'file' ? 150 : 128);
+    H[n.id] = n.type === 'module' ? 62 : (n.type === 'file' ? 48 : 34);
+    und[n.id] = []; dir[n.id] = []; indeg[n.id] = 0;
+  });
+  edges.forEach(e => {
+    if (!und[e.from] || !und[e.to]) return;
+    und[e.from].push(e.to); und[e.to].push(e.from);
+    if (e.type !== 'defines') { dir[e.from].push(e.to); indeg[e.to]++; }
+  });
+
+  const seen = new Set(), components = [];
+  nodes.forEach(n => {
+    if (seen.has(n.id)) return;
+    const comp = [], stack = [n.id]; seen.add(n.id);
+    while (stack.length) {
+      const id = stack.pop(); comp.push(id);
+      und[id].forEach(next => { if (!seen.has(next)) { seen.add(next); stack.push(next); } });
+    }
+    components.push(comp);
+  });
+
+  const layouts = [];
+  components.forEach(comp => {
+    const set = new Set(comp);
+    let roots = comp.filter(id => indeg[id] === 0);
+    if (!roots.length) roots = [comp.slice().sort()[0]]; // cyclic component
+    const level = {}, queue = roots.slice();
+    roots.forEach(id => { level[id] = 0; });
+    for (let q = 0; q < queue.length; q++) {
+      const id = queue[q];
+      dir[id].forEach(next => {
+        if (!set.has(next) || next === id) return;
+        if (level[next] === undefined) { level[next] = level[id] + 1; queue.push(next); }
+      });
+    }
+    // Nodes left by cycles or multiple roots are placed after their nearest
+    // reachable dependency layer, without inventing edges.
+    comp.forEach(id => { if (level[id] === undefined) level[id] = 0; });
+    const layers = new Map();
+    comp.forEach(id => {
+      if (!layers.has(level[id])) layers.set(level[id], []);
+      layers.get(level[id]).push(id);
+    });
+    [...layers.values()].forEach(layer => layer.sort());
+
+    const maxW = Math.max(...comp.map(id => W[id]));
+    const maxH = Math.max(...comp.map(id => H[id]));
+    const local = {};
+    const ranks = [...layers.keys()].sort((a,b) => a-b);
+    let componentWidth = 0;
+    ranks.forEach(rank => {
+      const layer = layers.get(rank);
+      componentWidth = Math.max(componentWidth, layer.reduce((sum,id)=>sum+W[id],0)+Math.max(0,layer.length-1)*64);
+    });
+    ranks.forEach(rank => {
+      const layer = layers.get(rank);
+      const layerWidth = layer.reduce((sum,id)=>sum+W[id],0)+Math.max(0,layer.length-1)*64;
+      let x = (componentWidth-layerWidth)/2;
+      layer.forEach(id => { local[id] = { x:x+W[id]/2, y:rank*(maxH+76)+H[id]/2 }; x += W[id]+64; });
+    });
+    layouts.push({
+      local,
+      width:componentWidth,
+      height:(Math.max(...ranks)+1)*(maxH+76)-76
+    });
+  });
+
+  // Pack disconnected components into a two-dimensional map instead of a
+  // single horizontal strip; position is deterministic and never fabricated.
+  const area = layouts.reduce((sum,c) => sum+c.width*c.height, 0);
+  const rowLimit = Math.max(900, Math.sqrt(area)*1.45);
+  const pos = {};
+  let x = 0, y = 0, rowH = 0;
+  layouts.forEach(c => {
+    if (x && x+c.width > rowLimit) { x=0; y+=rowH+140; rowH=0; }
+    Object.keys(c.local).forEach(id => { pos[id] = { x:c.local[id].x+x, y:c.local[id].y+y+c.height/2 }; });
+    x += c.width+140; rowH = Math.max(rowH,c.height);
+  });
+
+  const xs = nodes.map(n => pos[n.id].x), ys = nodes.map(n => pos[n.id].y);
+  if (!xs.length) return pos;
+  const dx = -(Math.min(...xs)+Math.max(...xs))/2, dy = -(Math.min(...ys)+Math.max(...ys))/2;
+  Object.keys(pos).forEach(id => { pos[id].x+=dx; pos[id].y+=dy; });
+  return pos;
+}
+
+// ---------- cytoscape style ----------
+function mapStyle() {
+  const s = [];
+  const base = {
+    'curve-style':'bezier',
+    'target-arrow-shape':'triangle',
+    'arrow-scale':0.75,
+    'line-color':MAP_REL.imports,
+    'width':1.6,
+    'opacity':0.72,
+    'label':'',
+    'font-size':9,
+    'text-background-color':'#fff',
+    'text-background-opacity':0.82,
+    'text-background-padding':'2px',
+    'text-border-color':'#fff',
+    'text-border-width':1,
+    'text-border-opacity':0.7,
+    'z-index':1
+  };
+  s.push({ selector:'edge', style: base });
+  s.push({ selector:'edge[relType = "imports"]', style:{'line-color':MAP_REL.imports,'width':1.7,'opacity':0.7} });
+  s.push({ selector:'edge[relType = "exports"]', style:{'line-color':MAP_REL.exports,'width':1.6,'opacity':0.7,'line-style':'dashed'} });
+  s.push({ selector:'edge[relType = "defines"]', style:{'line-color':MAP_REL.defines,'width':1.1,'opacity':0.5,'target-arrow-shape':'none'} });
+  s.push({ selector:'edge[relType = "calls"]', style:{'line-color':MAP_REL.calls,'width':1.5,'opacity':0.75} });
+  s.push({ selector:'edge[relType = "extends"]', style:{'line-color':MAP_REL.extends,'width':1.6,'opacity':0.8,'line-style':'dashed'} });
+  s.push({ selector:'edge[relType = "implements"]', style:{'line-color':MAP_REL.implements,'width':1.4,'opacity':0.75,'line-style':'dashed'} });
+  s.push({ selector:'edge[relType = "annotates"]', style:{'line-color':MAP_REL.annotates,'width':1.3,'opacity':0.7,'line-style':'dotted'} });
+  s.push({ selector:'edge.pseudo', style:{'line-color':'#94a3b8','width':2.4,'opacity':0.62,'arrow-scale':1.1} });
+  s.push({ selector:'edge.dim', style:{'opacity':0.12,'z-index':0} });
+  s.push({ selector:'edge.sel', style:{'opacity':1,'width':3.2,'z-index':9,'line-color':'#f59e0b'} });
+  s.push({ selector:'edge.nb', style:{'opacity':1,'width':2.2,'z-index':6} });
+
+  s.push({
+    selector:'node',
+    style:{
+      'label':'data(label)',
+      'font-family':'Inter, ui-sans-serif, system-ui, sans-serif',
+      'font-weight':600,
+      'color':'#1e293b',
+      'text-valign':'center','text-halign':'center',
+      'text-wrap':'wrap','text-max-width':170,
+      'border-width':0,
+      'overlay-opacity':0,
+      'z-index':5
+    }
+  });
+  s.push({
+    selector:'node[type = "file"]',
+    style:{
+      'background-color':'#ffffff',
+      'background-opacity':1,
+      'border-color':MAP_TC.file,
+      'border-width':2,
+      'shape':'round-rectangle',
+      'width':150,'height':48,
+      'font-size':11,'color':'#1e293b',
+      'text-margin-y':-6,
+      'shadow-color':'#0f172a','shadow-opacity':0.10,'shadow-blur':10,'shadow-offset-y':2
+    }
+  });
+  s.push({
+    selector:'node[type = "module"]',
+    style:{
+      'background-color':'#ffffff',
+      'background-opacity':1,
+      'border-color':MAP_TC.module,
+      'border-width':2.5,
+      'shape':'round-rectangle',
+      'width':168,'height':62,
+      'font-size':12,'color':'#0f172a',
+      'shadow-color':'#0f172a','shadow-opacity':0.12,'shadow-blur':14,'shadow-offset-y':3
+    }
+  });
+  s.push({
+    selector:'node[type = "function"]',
+    style:{'background-color':MAP_TC.function,'border-width':0,'shape':'round-rectangle','width':128,'height':34,'font-size':10.5,'color':'#ffffff'}
+  });
+  s.push({
+    selector:'node[type = "class"]',
+    style:{'background-color':MAP_TC.class,'border-width':0,'shape':'round-rectangle','width':128,'height':34,'font-size':10.5,'color':'#3b2500'}
+  });
+  s.push({
+    selector:'node[type = "api"]',
+    style:{'background-color':MAP_TC.api,'border-width':0,'shape':'round-rectangle','width':138,'height':34,'font-size':10.5,'color':'#ffffff'}
+  });
+  s.push({
+    selector:'node[type = "model"]',
+    style:{'background-color':MAP_TC.model,'border-width':0,'shape':'round-rectangle','width':128,'height':34,'font-size':10.5,'color':'#ffffff'}
+  });
+  s.push({
+    selector:'node[type = "annotation"]',
+    style:{'background-color':MAP_TC.annotation,'border-width':0,'shape':'round-rectangle','width':128,'height':30,'font-size':10,'color':'#ffffff'}
+  });
+  s.push({ selector:'node.outside', style:{'opacity':0.55,'border-style':'dashed','border-width':2} });
+  s.push({ selector:'node.dim', style:{'opacity':0.2,'z-index':1} });
+  s.push({ selector:'node.sel', style:{'border-color':'#f59e0b','border-width':3.5,'z-index':20,'shadow-color':'#f59e0b','shadow-opacity':0.45,'shadow-blur':18} });
+  s.push({ selector:'node.nb', style:{'z-index':10} });
+  s.push({ selector:'node.hot', style:{'border-color':'#0f172a','border-width':3,'z-index':15} });
+  s.push({ selector:'.nolabel node, .nolabel edge', style:{'label':''} });
+  return s;
+}
+
+function mapMiniStyle() {
+  return [
+    { selector:'node', style:{ 'label':'', 'background-color':'#94a3b8', 'width':6,'height':6, 'shape':'round-rectangle','border-width':0 } },
+    { selector:'node[type = "module"]', style:{ 'background-color':'#475569','width':12,'height':8 } },
+    { selector:'node[type = "file"]', style:{ 'background-color':'#2563eb','width':8,'height':6 } },
+    { selector:'node[type = "function"]', style:{ 'background-color':'#16a34a' } },
+    { selector:'node[type = "class"]', style:{ 'background-color':'#f59e0b' } },
+    { selector:'node[type = "api"]', style:{ 'background-color':'#ef4444' } },
+    { selector:'node[type = "model"]', style:{ 'background-color':'#6366f1' } },
+    { selector:'edge', style:{ 'line-color':'#cbd5e1','width':0.6,'opacity':0.5,'target-arrow-shape':'none' } },
+    { selector:'node.vp', style:{ 'background-color':'rgba(245,158,11,0.10)','border-color':'#f59e0b','border-width':2,'shape':'rectangle','z-index':10,'events':'no' } }
+  ];
+}
+
+// ---------- render ----------
+function mapRender(opts) {
+  opts = opts || {};
+  const idx = mapIndex();
+  const canvas = document.getElementById('mapCanvas');
+  if (!canvas) return;
+
+  if (!idx.nodes.length) {
+    document.getElementById('mapError').classList.add('show');
+    document.getElementById('expNodeCount').textContent = '0 nodes';
+    if (expCy) { expCy.elements().remove(); }
+    mapUpdateSidePanel();
+    return;
+  }
+  document.getElementById('mapError').classList.remove('show');
+
+  const col = mapApplyFilters(mapCollect(mapScope));
+  mapCurrent = { nodes: col.nodes, edges: col.edges };
+
+  const pos = mapLayout(col.nodes, col.edges);
+  const els = [];
+  col.nodes.forEach(n => {
+    const p = pos[n.id] || { x:0, y:0 };
+    let label = n.label || n.id;
+    if (n.type === 'module') label = n.label + '\n' + n.fileCount + ' files · ' + n.symbolCount + ' symbols';
+    else if (n.type === 'file') label = n.label;
+    els.push({
+      group:'nodes', data:{
+        id: n.id, label, type: n.type, relType: '',
+        module: n.type === 'module' ? n.module : mapModuleName(n.file || n.id),
+        file: n.file || n.id, line: n.line || null, raw: n
+      },
+      position: p,
+      classes: (col.outside && col.outside.has(n.id) ? 'outside ' : '') + (n.id === mapSel ? 'sel' : '')
+    });
+  });
+  col.edges.forEach((e, i) => {
+    if (!pos[e.from] || !pos[e.to]) return;
+    els.push({
+      group:'edges',
+      data:{ id: 'e' + i + '_' + e.from + '_' + e.to, source: e.from, target: e.to,
+             label: e.label || MAP_REL_LABEL[e.type] || e.type, relType: e.type, raw: e },
+      classes: e._pseudo ? 'pseudo' : ''
+    });
+  });
+
+  expCy.elements().remove();
+  expCy.add(els);
+  expCy.nodes().forEach(n => { n.position(pos[n.id()]); });
+
+  document.getElementById('expNodeCount').textContent =
+    col.nodes.length + ' nodes · ' + col.edges.length + ' links';
+
+  if (opts.fit !== false) mapFit(opts.pad);
+  if (mapReady()) mapUpdateMinimap();
+  mapUpdateSidePanel();
+  mapUpdateBreadcrumb();
+  mapUpdateProjectChip();
+}
+
+function mapUpdateProjectChip() {
+  const idx = mapIndex();
+  const name = document.getElementById('mapProjName');
+  const meta = document.getElementById('mapProjMeta');
+  if (!idx.nodes.length) { name.textContent = 'Codebase'; meta.textContent = 'No project loaded'; return; }
+  name.textContent = (window.currentProjectName || (graphSummary && graphSummary.projectName) || 'Project');
+  meta.textContent = idx.files.length + ' files · ' + idx.nodes.length + ' entities · ' + idx.modules.size + ' modules';
+}
+
+// ---------- navigation ----------
+function mapGo(scope, push) {
+  const same = mapScope.kind === scope.kind && mapScope.id === scope.id;
+  if (push !== false && !same) expPath.push({ kind: mapScope.kind, id: mapScope.id, label: mapScopeLabel() });
+  mapScope = { kind: scope.kind, id: scope.id };
+  mapSel = null;
+  mapSelEdge = null;
+  mapCloseDetail();
+  mapRender();
+}
+
+function mapScopeLabel() {
+  if (mapScope.kind === 'project') return 'Project';
+  if (mapScope.kind === 'module') return mapScope.id;
+  if (mapScope.kind === 'file') return (mapIndex().byId.get(mapScope.id) || {}).label || mapScope.id;
+  if (mapScope.kind === 'symbol') return (mapIndex().byId.get(mapScope.id) || {}).label || mapScope.id;
+  return 'Project';
+}
+
+function mapGoProject() { mapGo({ kind:'project', id:null }); }
+function mapGoModule(name) { mapGo({ kind:'module', id:name }); }
+function mapGoFile(fileId) { mapGo({ kind:'file', id:fileId }); }
+function mapGoSymbol(symId) { mapGo({ kind:'symbol', id:symId }); }
+
+function mapUpdateBreadcrumb() {
+  const bc = document.getElementById('mapBreadcrumb');
+  if (!bc) return;
+  const idx = mapIndex();
+  const parts = [];
+  parts.push('<span class="bc-seg' + (mapScope.kind === 'project' ? ' cur' : '') + '"' +
+    (mapScope.kind === 'project' ? '' : ' onclick="mapGoProject()"') + '>Project</span>');
+  if (mapScope.kind === 'module' || mapScope.kind === 'file' || mapScope.kind === 'symbol') {
+    const mod = mapScope.kind === 'module' ? mapScope.id : mapModuleName((idx.byId.get(mapScope.id) || {}).file || '');
+    parts.push('<span class="bc-sep">›</span>');
+    parts.push('<span class="bc-seg' + (mapScope.kind === 'module' ? ' cur' : '') + '"' +
+      (mapScope.kind === 'module' ? '' : ' onclick="mapGoModule(\'' + jsq(mod) + '\')"') + '>' + mapEsc(mod) + '</span>');
+  }
+  if (mapScope.kind === 'file' || mapScope.kind === 'symbol') {
+    const f = mapScope.kind === 'file' ? mapScope.id : (idx.symbolFile.get(mapScope.id) || '');
+    const fl = (idx.byId.get(f) || {}).label || f;
+    parts.push('<span class="bc-sep">›</span>');
+    parts.push('<span class="bc-seg' + (mapScope.kind === 'file' ? ' cur' : '') + '"' +
+      (mapScope.kind === 'file' ? '' : ' onclick="mapGoFile(\'' + jsq(f) + '\')"') + '>' + mapEsc(fl) + '</span>');
+  }
+  if (mapScope.kind === 'symbol') {
+    const sl = (idx.byId.get(mapScope.id) || {}).label || mapScope.id;
+    parts.push('<span class="bc-sep">›</span>');
+    parts.push('<span class="bc-seg cur">' + mapEsc(sl) + '</span>');
+  }
+  bc.innerHTML = parts.join('');
+}
+
+function mapEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- selection / details ----------
+function mapSelect(id) {
+  const idx = mapIndex();
+  let n = idx.byId.get(id);
+  if (!n && String(id).startsWith('mod:')) {
+    const name = String(id).slice(4);
+    const files = idx.modules.get(name) || [];
+    n = { id:id, label:name, type:'module', module:name, fileCount:files.length,
+          symbolCount:files.reduce((s,f) => s + (idx.fileSymbols.get(f) || []).length, 0) };
+  }
+  if (!n) return;
+  mapSel = id;
+  mapSelEdge = null;
+  expCy.nodes().removeClass('sel nb dim hot');
+  expCy.edges().removeClass('sel nb dim');
+  const el = expCy.getElementById(id);
+  if (!el || !el.length) return;
+  el.addClass('sel');
+  const nb = new Set([id]);
+  (idx.outEdges.get(id) || []).forEach(e => { if (expCy.getElementById(e.to).length) nb.add(e.to); });
+  (idx.inEdges.get(id) || []).forEach(e => { if (expCy.getElementById(e.from).length) nb.add(e.from); });
+  if (n.type === 'module') {
+    idx.moduleEdges.forEach(e => {
+      if (e.from === n.module && expCy.getElementById('mod:' + e.to).length) nb.add('mod:' + e.to);
+      if (e.to === n.module && expCy.getElementById('mod:' + e.from).length) nb.add('mod:' + e.from);
+    });
+  }
+  expCy.nodes().forEach(x => { if (nb.has(x.id())) x.addClass('nb'); else x.addClass('dim'); });
+  expCy.edges().forEach(e => {
+    if (nb.has(e.source().id()) && nb.has(e.target().id())) e.addClass('nb');
+    else e.addClass('dim');
+  });
+  mapRenderDetails(n);
+  mapUpdateSidePanel();
+}
+
+function mapSelectEdge(edgeId) {
+  const idx = mapIndex();
+  const e = idx.edges.find(x => edgeId === mapEdgeKey(x));
+  if (!e) return;
+  mapSelEdge = e;
+  mapSel = null;
+  expCy.edges().removeClass('sel nb dim');
+  expCy.nodes().removeClass('sel nb dim');
+  const el = expCy.getElementById(edgeId);
+  if (el && el.length) el.addClass('sel');
+  expCy.nodes().forEach(n => {
+    if (n.id() === e.from || n.id() === e.to) n.addClass('nb'); else n.addClass('dim');
+  });
+  mapRenderEdgeDetails(e);
+}
+
+function mapEdgeKey(e) { return 'e' + e.from + '_' + e.to + '_' + e.type; }
+
+function mapClearSelection() {
+  mapSel = null; mapSelEdge = null;
+  if (expCy) { expCy.nodes().removeClass('sel nb dim hot'); expCy.edges().removeClass('sel nb dim'); }
+  mapCloseDetail();
+}
+
+function mapCloseDetail() {
+  const d = document.getElementById('mapDetail');
+  if (d) d.classList.remove('open');
+}
+
+function mapRenderDetails(n) {
+  const idx = mapIndex();
+  const panel = document.getElementById('mapDetail');
+  const ico = document.getElementById('mdIcon');
+  const nm = document.getElementById('mdName');
+  const ty = document.getElementById('mdType');
+  const bd = document.getElementById('mdBody');
+  if (!panel) return;
+
+  const col = MAP_TC[n.type] || '#64748b';
+  ico.style.background = col;
+  ico.textContent = n.type === 'file' ? '📄' : n.type === 'class' ? '◆' : n.type === 'api' ? '⇄' : n.type === 'model' ? '◇' : n.type === 'module' ? '▦' : 'ƒ';
+  nm.textContent = n.label || n.id;
+  ty.textContent = (MAP_TYPE_LABEL[n.type] || n.type) + (n.file && n.type !== 'file' ? ' · ' + n.file : '');
+
+  const out = idx.outEdges.get(n.id) || [];
+  const inn = idx.inEdges.get(n.id) || [];
+  const defs = out.filter(e => e.type === 'defines');
+  const outs = out.filter(e => e.type !== 'defines');
+  const ins = inn.filter(e => e.type !== 'defines');
+
+  let h = '';
+
+  // stats
+  if (n.type === 'module') {
+    const files = idx.modules.get(n.module) || [];
+    const syms = files.reduce((s,f) => s + (idx.fileSymbols.get(f) || []).length, 0);
+    const deps = idx.moduleEdges.filter(m => m.from === n.module);
+    const used = idx.moduleEdges.filter(m => m.to === n.module);
+    h += `<div class="md-stats">
+      <div class="md-stat"><div class="mds-v">${files.length}</div><div class="mds-l">Files</div></div>
+      <div class="md-stat"><div class="mds-v">${syms}</div><div class="mds-l">Symbols</div></div>
+      <div class="md-stat"><div class="mds-v">${used.length}</div><div class="mds-l">Depended on by</div></div>
+      <div class="md-stat"><div class="mds-v">${deps.length}</div><div class="mds-l">Depends on</div></div>
+    </div>`;
+    h += `<div class="md-actions">
+      <button class="md-act wide" onclick="mapGoModule('${mapEsc(n.module)}')">Open module</button>
+      <button class="md-act" onclick="mapGoProject()">All modules</button>
+      <button class="md-act" onclick="mapAskAI('${mapEsc(n.id)}')">Ask AI</button>
+    </div>`;
+    h += `<div class="md-sect">Files <span class="mds-count">${files.length}</span></div><div class="md-list">` +
+      files.slice(0, 60).map(fid => {
+        const f = idx.byId.get(fid);
+        return `<div class="md-item" onclick="mapGoFile('${mapEsc(fid)}')">
+          <div class="mdi-ico" style="background:${MAP_TC.file}">📄</div>
+          <div class="mdi-txt"><div class="mdi-name">${mapEsc(f ? f.label : fid)}</div>
+          <div class="mdi-rel">${mapEsc(fid)}</div></div></div>`;
+      }).join('') + `</div>`;
+    if (deps.length) {
+      h += `<div class="md-sect">Depends on <span class="mds-count">${deps.length}</span></div><div class="md-list">` +
+        deps.map(d => `<div class="md-item" onclick="mapGoModule('${mapEsc(d.to)}')">
+          <div class="mdi-ico" style="background:${MAP_TC.module}">▦</div>
+          <div class="mdi-txt"><div class="mdi-name">${mapEsc(d.to)}</div>
+          <div class="mdi-rel">${d.count} import${d.count>1?'s':''}</div></div></div>`).join('') + `</div>`;
+    }
+    bd.innerHTML = h;
+    panel.classList.add('open');
+    return;
+  }
+
+  if (n.type === 'file') {
+    const syms = idx.fileSymbols.get(n.id) || [];
+    const fileIn = ins.filter(e => e.type === 'imports' || e.type === 'exports');
+    const fileOut = outs.filter(e => e.type === 'imports' || e.type === 'exports');
+    h += `<div class="md-stats">
+      <div class="md-stat"><div class="mds-v">${syms.length}</div><div class="mds-l">Symbols</div></div>
+      <div class="md-stat"><div class="mds-v">${fileOut.length}</div><div class="mds-l">Imports</div></div>
+      <div class="md-stat"><div class="mds-v">${fileIn.length}</div><div class="mds-l">Imported by</div></div>
+      <div class="md-stat"><div class="mds-v">${(n.language||'?').toUpperCase()}</div><div class="mds-l">Language</div></div>
+    </div>`;
+    h += `<div class="md-sect">Path</div><div class="md-path">${mapEsc(n.file || n.id)}</div>`;
+    h += `<div class="md-actions">
+      <button class="md-act wide" onclick="mapGoFile('${mapEsc(n.id)}')">Open file</button>
+      <button class="md-act" onclick="mapImpact('${mapEsc(n.id)}')">Analyze impact</button>
+      <button class="md-act" onclick="mapAskAI('${mapEsc(n.id)}')">Ask AI</button>
+    </div>`;
+    if (syms.length) {
+      h += `<div class="md-sect">Contains <span class="mds-count">${syms.length}</span></div><div class="md-list">` +
+        syms.map(s => `<div class="md-item" onclick="mapGoSymbol('${mapEsc(s.id)}')">
+          <div class="mdi-ico" style="background:${MAP_TC[s.type]||'#64748b'}">${s.type==='class'?'◆':s.type==='api'?'⇄':'ƒ'}</div>
+          <div class="mdi-txt"><div class="mdi-name">${mapEsc(s.label)}</div>
+          <div class="mdi-rel">${MAP_TYPE_LABEL[s.type]||s.type}${s.line?' · L'+s.line:''}</div></div></div>`).join('') + `</div>`;
+    }
+    h += mapEdgeList('Imports', fileOut);
+    h += mapEdgeList('Imported by', fileIn);
+    if (loadedCode && loadedCode[n.file || n.id]) {
+      h += `<div class="md-sect">Source</div><div class="md-code">${mapHighlightCode(loadedCode[n.file || n.id], n.line)}</div>`;
+    }
+    bd.innerHTML = h;
+    panel.classList.add('open');
+    return;
+  }
+
+  // symbol-ish nodes
+  const fileId = idx.symbolFile.get(n.id) || n.file;
+  const fileNode = idx.byId.get(fileId);
+  h += `<div class="md-stats">
+    <div class="md-stat"><div class="mds-v">${ins.length}</div><div class="mds-l">${n.type==='class'?'Subclasses':'Callers'}</div></div>
+    <div class="md-stat"><div class="mds-v">${outs.length}</div><div class="mds-l">Calls</div></div>
+    <div class="md-stat"><div class="mds-v">${(n.language||'?').toUpperCase()}</div><div class="mds-l">Language</div></div>
+    <div class="md-stat"><div class="mds-v">L${n.line||'?'}</div><div class="mds-l">Line</div></div>
+  </div>`;
+  h += `<div class="md-sect">Defined in</div>` +
+    (fileNode ? `<div class="md-item" onclick="mapGoFile('${mapEsc(fileNode.id)}')">
+      <div class="mdi-ico" style="background:${MAP_TC.file}">📄</div>
+      <div class="mdi-txt"><div class="mdi-name">${mapEsc(fileNode.label)}</div>
+      <div class="mdi-rel">${mapEsc(fileNode.id)}</div></div></div>` : `<div class="md-note">${mapEsc(n.file||'')}</div>`);
+  h += `<div class="md-actions">
+    <button class="md-act wide" onclick="mapGoSymbol('${mapEsc(n.id)}')">Explore dependencies</button>
+    <button class="md-act" onclick="mapImpact('${mapEsc(n.id)}')">Analyze impact</button>
+    <button class="md-act" onclick="mapAskAI('${mapEsc(n.id)}')">Ask AI</button>
+  </div>`;
+  h += mapEdgeList('Called by', ins);
+  h += mapEdgeList('Calls', outs);
+  if (loadedCode && loadedCode[n.file] && n.line) {
+    h += `<div class="md-sect">Source</div><div class="md-code">${mapHighlightCode(loadedCode[n.file], n.line)}</div>`;
+  }
+  bd.innerHTML = h;
+  panel.classList.add('open');
+}
+
+function mapEdgeList(title, edges) {
+  if (!edges || !edges.length) return '';
+  return `<div class="md-sect">${title} <span class="mds-count">${edges.length}</span></div><div class="md-list">` +
+    edges.slice(0, 40).map(e => {
+      const otherId = e.from === mapSel ? e.to : e.from;
+      const o = mapIndex().byId.get(otherId) || { id: otherId, label: otherId, type: 'function' };
+      const rel = MAP_REL_LABEL[e.type] || e.type;
+      return `<div class="md-item" onclick="mapSelect('${mapEsc(otherId)}')">
+        <div class="mdi-ico" style="background:${MAP_TC[o.type]||'#64748b'}">${o.type==='file'?'📄':o.type==='class'?'◆':o.type==='api'?'⇄':'ƒ'}</div>
+        <div class="mdi-txt"><div class="mdi-name">${mapEsc(o.label)}</div>
+        <div class="mdi-rel">${rel}${e.line?' · L'+e.line:''}</div></div></div>`;
+    }).join('') + `</div>`;
+}
+
+function mapRenderEdgeDetails(e) {
+  const idx = mapIndex();
+  const panel = document.getElementById('mapDetail');
+  const ico = document.getElementById('mdIcon');
+  const nm = document.getElementById('mdName');
+  const ty = document.getElementById('mdType');
+  const bd = document.getElementById('mdBody');
+  const from = idx.byId.get(e.from), to = idx.byId.get(e.to);
+  ico.style.background = MAP_REL[e.type] || '#64748b';
+  ico.textContent = '⇢';
+  nm.textContent = e.label || (MAP_REL_LABEL[e.type] || e.type);
+  ty.textContent = (MAP_REL_LABEL[e.type] || e.type) + ' relationship';
+  let h = `<div class="md-sect">Relationship</div>
+    <div class="md-item" onclick="mapSelect('${mapEsc(e.from)}')">
+      <div class="mdi-ico" style="background:${MAP_TC[from?from.type:'file']}">${from&&from.type==='file'?'📄':'ƒ'}</div>
+      <div class="mdi-txt"><div class="mdi-name">${mapEsc(from?from.label:e.from)}</div>
+      <div class="mdi-rel">source</div></div></div>
+    <div class="md-item" onclick="mapSelect('${mapEsc(e.to)}')">
+      <div class="mdi-ico" style="background:${MAP_TC[to?to.type:'function']}">${to&&to.type==='file'?'📄':'ƒ'}</div>
+      <div class="mdi-txt"><div class="mdi-name">${mapEsc(to?to.label:e.to)}</div>
+      <div class="mdi-rel">target</div></div></div>`;
+  if (e.line) h += `<div class="md-sect">Location</div><div class="md-path">${mapEsc(e.line)}</div>`;
+  h += `<div class="md-actions">
+    <button class="md-act wide" onclick="mapSelect('${mapEsc(e.from)}')">Focus source</button>
+    <button class="md-act" onclick="mapSelect('${mapEsc(e.to)}')">Focus target</button>
+  </div>`;
+  bd.innerHTML = h;
+  panel.classList.add('open');
+}
+
+function mapHighlightCode(code, line) {
+  if (typeof hl === 'function') {
+    try { return hl(code); } catch (err) { /* fall through */ }
+  }
+  return mapEsc(code);
+}
+
+// ---------- side panel ----------
+function mapPane(which) {
+  document.querySelectorAll('.map-side-tab').forEach(t => t.classList.toggle('active', t.dataset.mpane === which));
+  document.querySelectorAll('.map-pane').forEach(p => p.classList.toggle('active', p.id === 'mpane-' + which));
+}
+
+function mapToggleSide() {
+  document.getElementById('mapSide').classList.toggle('collapsed');
+  setTimeout(() => { if (expCy) expCy.resize(); mapUpdateMinimap(); }, 260);
+}
+
+function mapUpdateSidePanel() {
+  const idx = mapIndex();
+  const scopeList = document.getElementById('mapScopeList');
+  const modList = document.getElementById('mapModuleList');
+  const kindEl = document.getElementById('mapScopeKind');
+  if (!scopeList) return;
+
+  kindEl.textContent = mapScope.kind;
+
+  let items = [];
+  if (mapScope.kind === 'project' && mapCurrent.flat) {
+    items = mapCurrent.nodes.filter(n => n.type === 'file').map(f => ({
+      id:f.id, label:f.label, type:'file', sub:f.id, badge:(idx.fileSymbols.get(f.id)||[]).length,
+      action:`mapGoFile('${jsq(f.id)}')`
+    }));
+  } else if (mapScope.kind === 'project') {
+    items = [...idx.modules.keys()].sort((a,b) => idx.modules.get(b).length - idx.modules.get(a).length).map(m => ({
+      id:'mod:'+m, label:m, type:'module', sub: idx.modules.get(m).length + ' files',
+      badge: idx.modules.get(m).length, action:`mapGoModule('${jsq(m)}')`
+    }));
+  } else if (mapScope.kind === 'module') {
+    items = (idx.modules.get(mapScope.id) || []).map(fid => {
+      const f = idx.byId.get(fid);
+      return { id:fid, label:f.label, type:'file', sub:fid, badge:(idx.fileSymbols.get(fid)||[]).length,
+               action:`mapGoFile('${jsq(fid)}')` };
+    });
+  } else if (mapScope.kind === 'file') {
+    items = (idx.fileSymbols.get(mapScope.id) || []).map(s => ({
+      id:s.id, label:s.label, type:s.type, sub:s.type + (s.line?' · L'+s.line:''), badge:null,
+      action:`mapSelect('${jsq(s.id)}')`
+    }));
+  } else if (mapScope.kind === 'symbol') {
+    const s = idx.byId.get(mapScope.id);
+    const sibs = (idx.fileSymbols.get(idx.symbolFile.get(mapScope.id) || '') || []).filter(x => x.id !== mapScope.id);
+    const callers = (idx.inEdges.get(mapScope.id) || []).map(e => idx.byId.get(e.from)).filter(Boolean);
+    const callees = (idx.outEdges.get(mapScope.id) || []).map(e => idx.byId.get(e.to)).filter(Boolean);
+    items = callers.map(x => ({ id:x.id, label:x.label, type:x.type, sub:'calls this', badge:'in', action:`mapSelect('${jsq(x.id)}')` }))
+      .concat(callees.map(x => ({ id:x.id, label:x.label, type:x.type, sub:'called by this', badge:'out', action:`mapSelect('${jsq(x.id)}')` })))
+      .concat(sibs.map(x => ({ id:x.id, label:x.label, type:x.type, sub:'same file', badge:null, action:`mapSelect('${jsq(x.id)}')` })));
+  }
+
+  if (!items.length) {
+    scopeList.innerHTML = '<div class="mempty"><span class="me-ico">◌</span>Nothing at this level.</div>';
+  } else {
+    scopeList.innerHTML = items.map(it => `
+      <div class="mrow${mapSel===it.id?' sel':''}" onclick="${it.action}">
+        <div class="mrow-ico" style="background:${MAP_TC[it.type]||'#64748b'}">${it.type==='file'?'📄':it.type==='class'?'◆':it.type==='api'?'⇄':it.type==='module'?'▦':'ƒ'}</div>
+        <div class="mrow-txt"><div class="mrow-name">${mapEsc(it.label)}</div><div class="mrow-sub">${mapEsc(it.sub||'')}</div></div>
+        ${it.badge!=null?`<span class="mrow-badge">${mapEsc(it.badge)}</span>`:''}
+      </div>`).join('');
+  }
+
+  if (modList) {
+    const mods = [...idx.modules.keys()].sort((a,b) => idx.modules.get(b).length - idx.modules.get(a).length);
+    modList.innerHTML = mods.length ? mods.map(m => `
+      <div class="mrow" onclick="mapGoModule('${jsq(m)}')">
+        <div class="mrow-ico" style="background:${MAP_TC.module}">▦</div>
+        <div class="mrow-txt"><div class="mrow-name">${mapEsc(m)}</div><div class="mrow-sub">${idx.modules.get(m).length} files</div></div>
+      </div>`).join('') : '<div class="mempty"><span class="me-ico">◌</span>No modules yet.</div>';
+  }
+
+  // filter chips
+  const typeChips = document.getElementById('mapTypeChips');
+  if (typeChips) {
+    const present = new Set();
+    idx.nodes.forEach(n => present.add(n.type));
+    typeChips.innerHTML = [...present].sort().map(t =>
+      `<button class="mchip t-${t}" data-type="${t}" onclick="mapToggleType('${t}')">${MAP_TYPE_LABEL[t]||t}</button>`).join('');
+  }
+  const relChips = document.getElementById('mapRelChips');
+  if (relChips) {
+    const present = new Set();
+    idx.edges.forEach(e => present.add(e.type));
+    relChips.innerHTML = [...present].sort().map(t =>
+      `<button class="mchip" data-rel="${t}" onclick="mapToggleRel('${t}')">${MAP_REL_LABEL[t]||t}</button>`).join('');
+  }
+  const modSel = document.getElementById('mapModuleFilter');
+  if (modSel) {
+    const selectedModule = mapFilters.module;
+    modSel.innerHTML = '<option value="all">All modules</option>' +
+      [...idx.modules.keys()].sort().map(m => `<option value="${mapEsc(m)}">${mapEsc(m)}</option>`).join('');
+    modSel.value = selectedModule;
+  }
+  typeChips && typeChips.querySelectorAll('.mchip').forEach(c => c.classList.toggle('on', mapFilters.types.has(c.dataset.type)));
+  relChips && relChips.querySelectorAll('.mchip').forEach(c => c.classList.toggle('on', mapFilters.rels.has(c.dataset.rel)));
+}
+
+function mapToggleType(t) {
+  if (mapFilters.types.has(t)) mapFilters.types.delete(t); else mapFilters.types.add(t);
+  mapRender({ fit:false });
+}
+function mapToggleRel(t) {
+  if (mapFilters.rels.has(t)) mapFilters.rels.delete(t); else mapFilters.rels.add(t);
+  mapRender({ fit:false });
+}
+function mapSetModuleFilter(v) { mapFilters.module = v; mapRender({ fit:false }); }
+function mapSetDir(v) { mapFilters.dir = v; mapRender({ fit:false }); }
+function mapSetScopeMode(v) { mapFilters.mode = v; mapRender({ fit:false }); }
+function mapResetFilters() {
+  mapFilters.types.clear();
+  mapFilters.rels.clear();
+  mapFilters.module = 'all';
+  mapFilters.dir = 'all';
+  mapFilters.mode = 'scope';
+  const d = document.getElementById('mapDirMode');
+  if (d) d.querySelectorAll('input').forEach(i => { if (i.value === 'all') i.checked = true; });
+  const s = document.getElementById('mapScopeMode');
+  if (s) s.querySelectorAll('input').forEach(i => { if (i.value === 'scope') i.checked = true; });
+  const m = document.getElementById('mapModuleFilter');
+  if (m) m.value = 'all';
+  mapRender({ fit:false });
+}
+
+// ---------- search ----------
+function mapSearch(q) {
+  const wrap = document.getElementById('mapSearchWrap');
+  const input = document.getElementById('mapSearch');
+  const list = document.getElementById('mapResultsList');
+  const title = document.getElementById('mapResultsTitle');
+  q = (q == null ? '' : q).trim();
+  wrap.classList.toggle('has-q', !!q);
+  if (!q) {
+    title.textContent = 'Search results';
+    list.innerHTML = '<div class="mempty"><span class="me-ico">⌕</span>Type to search files, functions, classes, routes and modules.</div>';
+    return;
+  }
+  const idx = mapIndex();
+  const lq = q.toLowerCase();
+  const hits = [];
+  idx.modules.forEach((files, name) => {
+    if (name.toLowerCase().indexOf(lq) >= 0) hits.push({ id:'mod:'+name, label:name, type:'module', sub:name + ' · ' + files.length + ' files' });
+  });
+  idx.nodes.forEach(n => {
+    if (n.type === 'file') {
+      if ((n.label||'').toLowerCase().indexOf(lq) >= 0 || (n.id||'').toLowerCase().indexOf(lq) >= 0)
+        hits.push({ id:n.id, label:n.label, type:'file', sub:n.id });
+    } else {
+      const hay = (n.label||'') + ' ' + (n.id||'');
+      if (hay.toLowerCase().indexOf(lq) >= 0)
+        hits.push({ id:n.id, label:n.label, type:n.type, sub:(n.file||'') + (n.line?' : '+n.line:'') });
+    }
+  });
+  const order = { module:0, file:1, api:2, class:3, function:4, model:5, annotation:6 };
+  hits.sort((a,b) => (order[a.type]??9) - (order[b.type]??9) || a.label.localeCompare(b.label));
+  const shown = hits.slice(0, 150);
+  title.textContent = `${hits.length} result${hits.length===1?'':'s'}`;
+  list.innerHTML = shown.length ? shown.map(h => `
+    <div class="mres" onclick="mapFocusEntity('${jsq(h.id)}')">
+      <span class="mr-type" style="background:${MAP_TC[h.type]||'#64748b'}">${h.type}</span>
+      <span class="mr-main"><span class="mr-name">${mapEsc(h.label)}</span><span class="mr-path">${mapEsc(h.sub)}</span></span>
+    </div>`).join('') : '<div class="mempty"><span class="me-ico">∅</span>No matches in this codebase.</div>';
+  if (input) input.setAttribute('aria-expanded','true');
+}
+
+function mapClearSearch() {
+  const input = document.getElementById('mapSearch');
+  if (input) { input.value = ''; input.focus(); }
+  mapSearch('');
+}
+
+function mapFocusEntity(id) {
+  const idx = mapIndex();
+  if (id.startsWith('mod:')) { mapGoModule(id.slice(4)); return; }
+  const n = idx.byId.get(id);
+  if (!n) return;
+  if (n.type === 'file') {
+    mapGoFile(id);
+    setTimeout(() => { mapSelect(id); mapCenterSelection(); }, 60);
+  } else {
+    const f = idx.symbolFile.get(id) || n.file;
+    mapScope = { kind:'file', id:f };
+    mapSel = null;
+    mapRender();
+    setTimeout(() => { mapSelect(id); mapCenterSelection(); }, 80);
+  }
+}
+
+// ---------- minimap ----------
+function mapInitMinimap() {
+  if (mapMiniCy) return;
+  const el = document.getElementById('mapMiniCy');
+  if (!el) return;
+  mapMiniCy = cytoscape({
+    container: el,
+    elements: [],
+    style: mapMiniStyle(),
+    minZoom: 0.01, maxZoom: 20,
+    wheelSensitivity: 0.2,
+    userZoomingEnabled: false, userPanningEnabled: false,
+    boxSelectionEnabled: false, autoungrabify: false
+  });
+  mapMiniCy.on('tap', 'node', function(e) {
+    const id = e.target.id();
+    const n = expCy.getElementById(id);
+    if (n && n.length) { expCy.animate({ center: n.position(), duration: 260 }); }
+  });
+}
+
+function mapToggleMinimap() {
+  const mm = document.getElementById('mapMinimap');
+  const btn = document.getElementById('mapMiniBtn');
+  if (!mm) return;
+  mm.classList.toggle('show');
+  if (btn) btn.classList.toggle('on', mm.classList.contains('show'));
+  if (mm.classList.contains('show')) { mapInitMinimap(); setTimeout(function(){ if (mapReady()) { expCy.resize(); mapUpdateMinimap(); } }, 90); }
+}
+
+function mapUpdateMinimap() {
+  const mm = document.getElementById('mapMinimap');
+  if (!mm || !mm.classList.contains('show') || !mapMiniCy) return;
+  if (!mapReady()) return;
+  const els = [];
+  expCy.nodes().forEach(n => {
+    els.push({ group:'nodes', data:{ id:n.id() }, position: n.position(), classes:'mcopy' });
+  });
+  expCy.edges().forEach(e => {
+    els.push({ group:'edges', data:{ id:'m_' + e.id(), source:e.source().id(), target:e.target().id() } });
+  });
+  els.push({ group:'nodes', data:{ id:'vp', cls:'vp' }, position:{ x:0, y:0 } });
+  mapMiniCy.elements().remove();
+  mapMiniCy.add(els);
+  mapMiniCy.fit(mapMiniCy.nodes().filter(n => n.id() !== 'vp'), 8);
+  mapMiniCy.getElementById('vp').style({ 'shape':'rectangle' });
+  mapSyncMinimap();
+}
+
+function mapSyncMinimap() {
+  if (!mapMiniCy || !expCy) return;
+  const mm = document.getElementById('mapMinimap');
+  if (!mm || !mm.classList.contains('show')) return;
+  const vp = mapMiniCy.getElementById('vp');
+  if (!vp || !vp.length) return;
+  const canvas = document.getElementById('mapCanvas');
+  const w = canvas.clientWidth || 800, h = canvas.clientHeight || 600;
+  const z = expCy.zoom() || 1;
+  const c = expCy.center();
+  vp.position({ x:c.x, y:c.y });
+  vp.style({ width: w/z, height: h/z, 'border-width': 2 });
+  const meta = document.getElementById('mapMiniMeta');
+  if (meta) meta.textContent = Math.round(z * 100) + '%';
+}
+
+// ---------- view controls ----------
+function mapReady() {
+  const c = document.getElementById('mapCanvas');
+  return !!(c && c.clientWidth > 40 && c.clientHeight > 40);
+}
+
+let _fitTimer = null;
+function mapScheduleFit(pad) {
+  clearTimeout(_fitTimer);
+  _fitTimer = setTimeout(function() {
+    if (!mapReady() || !expCy) return;
+    expCy.resize();
+    mapFit(pad);
+  }, 130);
+}
+
+function mapFit(pad) {
+  if (!expCy) return;
+  if (!mapReady()) { mapScheduleFit(pad); return; }
+  const ns = expCy.nodes();
+  if (!ns.length) return;
+  expCy.animate({ fit: { eles: ns, padding: pad == null ? 70 : pad } }, { duration: 460, easing:'ease-out-cubic' });
+  setTimeout(mapSyncMinimap, 480);
+}
+
+function expFit(pad, _tries) {
+  if (!mapReady()) {
+    if ((_tries||0) < 25) setTimeout(() => expFit(pad, (_tries||0)+1), 150);
+    return;
+  }
+  if (expCy) expCy.resize();
+  mapFit(pad);
+}
+
+function expReset() {
+  mapResetFilters();
+  mapGoProject();
+  setTimeout(() => mapFit(70), 60);
+}
+
+function expZoomStep(dir) {
+  if (!expCy) return;
+  const z = expCy.zoom();
+  const nz = dir > 0 ? z * 1.35 : z / 1.35;
+  expCy.animate({ zoom: Math.max(0.02, Math.min(8, nz)), duration: 180 }, { duration: 200 });
+  setTimeout(() => { updateZoomUI(); mapSyncMinimap(); }, 220);
+}
+
+function updateZoomUI() {
+  const el = document.getElementById('expZoomPct');
+  if (el && expCy) el.textContent = Math.round(expCy.zoom() * 100) + '%';
+}
+
+function mapCenterSelection() {
+  if (!expCy) return;
+  if (mapSel) {
+    const n = expCy.getElementById(mapSel);
+    if (n && n.length) { expCy.animate({ center: n.position(), zoom: Math.max(expCy.zoom(), 1.1), duration: 420 }); return; }
+  }
+  mapFit(70);
+}
+
+function mapToggleLabels() {
+  mapLabelsOn = !mapLabelsOn;
+  const btn = document.getElementById('mapLabelsBtn');
+  if (btn) btn.classList.toggle('on', mapLabelsOn);
+  if (expCy) {
+    expCy.elements().toggleClass('nolabel', !mapLabelsOn);
+    expCy.nodes().style('label', m => mapLabelsOn ? m.data('label') : '');
+    expCy.edges().style('label', m => mapLabelsOn ? m.data('label') : '');
+  }
+}
+
+function mapImpact(id) {
+  switchNav('impact');
+  setTimeout(() => { pickImpact(id); }, 220);
+}
+function mapAskAI(id) {
+  switchNav('chat');
+  setTimeout(() => {
+    const inp = document.getElementById('chatInput');
+    if (inp) inp.value = 'Explain ' + id + ' and what depends on it.';
+    askAI();
+  }, 260);
+}
+
+// ---------- legacy API kept for other pages ----------
+function showModules() { mapGoProject(); }
+function showModuleFiles(name) { mapGoModule(name); }
+function showFileInternals(fileId) { mapGoFile(fileId); }
+function computeMapRef() { mapUpdateSidePanel(); }
+function applyZoomLabels() { updateZoomUI(); mapSyncMinimap(); }
+function applyZoomLabelsThrottled() { updateZoomUI(); mapSyncMinimap(); }
+function setGraphHelp(emoji, text) {
+  const h = document.getElementById('mapHint');
+  if (h) { h.textContent = text; h.classList.add('show'); setTimeout(() => h.classList.remove('show'), 4200); }
+}
+function highlightAndDetail(node) {
+  const id = node && node.id ? node.id : node;
+  mapSelect(id);
+}
+function clearHighlight() { mapClearSelection(); }
+function expGoBack() {
+  if (!expPath.length) return;
+  const prev = expPath.pop();
+  mapScope = { kind: prev.kind, id: prev.id };
+  mapSel = null;
+  mapRender();
+}
+function expGoBackTo(idx) {
+  while (expPath.length > idx) expPath.pop();
+  if (idx === 0) { mapScope = { kind:'project', id:null }; mapSel = null; mapRender(); return; }
+  const prev = expPath[expPath.length - 1];
+  if (prev) { mapScope = { kind: prev.kind, id: prev.id }; mapSel = null; mapRender(); }
+}
+
+// ---------- init ----------
+function initExpCy() {
+  if (expCy) return;
+  const container = document.getElementById('fullCy');
+  if (!container) return;
+
+  expCy = cytoscape({
+    container: container,
+    elements: [],
+    style: mapStyle(),
+    layout: { name:'preset' },
+    minZoom: 0.02,
+    maxZoom: 8,
+    wheelSensitivity: 0.22,
+    zoomDelta: 0.18,
+    panDelta: 60,
+    pixelRatio: 'auto',
+    boxSelectionEnabled: false,
+    autounselectify: false,
+    userZoomingEnabled: false,
+    userPanningEnabled: false,
+    autoungrabify: true
+  });
+
+  expCy.on('tap', 'node', function(e) {
+    if (Date.now() < (window._suppressTap || 0)) return;
+    const id = e.target.id();
+    const n = mapIndex().byId.get(id);
+    if (!n) return;
+    if (e.target.data('type') === 'module') { mapSelect(id); return; }
+    mapSelect(id);
+  });
+
+  expCy.on('dbltap', 'node', function(e) {
+    if (Date.now() < (window._suppressTap || 0)) return;
+    const id = e.target.id();
+    const n = mapIndex().byId.get(id);
+    if (!n) return;
+    if (n.type === 'module') { mapGoModule(n.module || id.slice(4)); return; }
+    if (n.type === 'file') { mapGoFile(id); return; }
+    mapGoSymbol(id);
+  });
+
+  expCy.on('tap', 'edge', function(e) {
+    if (Date.now() < (window._suppressTap || 0)) return;
+    const d = e.target.data();
+    const raw = d.raw;
+    if (raw) mapRenderEdgeDetails(raw);
+  });
+
+  expCy.on('tap', function(e) {
+    if (e.target === expCy) mapClearSelection();
+  });
+
+  expCy.on('mouseover', 'node', function(e) {
+    const n = e.target;
+    n.addClass('hot');
+    n.style({ 'text-opacity':1, 'text-background-opacity':0.95, 'text-border-opacity':1, 'text-border-color':'#0f172a' });
+  });
+  expCy.on('mouseout', 'node', function(e) {
+    const n = e.target;
+    n.removeClass('hot');
+    n.style({ 'text-background-opacity':0.82, 'text-border-opacity':0.7, 'text-border-color':'#ffffff' });
+  });
+
+  expCy.on('zoom', function() { updateZoomUI(); mapSyncMinimap(); });
+  expCy.on('pan', function() { mapSyncMinimap(); });
+
+  // ---- manual panning (works when the drag starts over a node) ----
+  let panning = false, pStart = null, panOrigin = null, moved = 0;
+  const PAN_THRESHOLD = 4;
+  function onDown(x, y) {
+    if (!expCy) return;
+    panning = true; moved = 0;
+    pStart = { x:x, y:y };
+    panOrigin = expCy.pan();
+  }
+  function onMove(x, y) {
+    if (!panning || !expCy) return;
+    const dx = x - pStart.x, dy = y - pStart.y;
+    moved = Math.max(moved, Math.abs(dx) + Math.abs(dy));
+    if (moved < PAN_THRESHOLD) return;
+    expCy.pan({ x: panOrigin.x + dx, y: panOrigin.y + dy });
+  }
+  function onUp() {
+    if (panning) {
+      const wasDrag = moved >= PAN_THRESHOLD;
+      panning = false;
+      if (wasDrag) {
+        window._suppressTap = Date.now() + 160;
+        expCy.nodes().removeClass('hot');
+      }
+    }
+  }
+  container.addEventListener('mousedown', function(e) { onDown(e.clientX, e.clientY); });
+  window.addEventListener('mousemove', function(e) { onMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', onUp);
+  container.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) onDown(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive:true });
+  container.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 1) onMove(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive:true });
+  window.addEventListener('touchend', onUp);
+
+  // ---- zoom via wheel (manual so it works over nodes too) ----
+  container.addEventListener('wheel', function(e) {
+    if (!expCy) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.88 : 1.14;
+    const z = Math.max(0.02, Math.min(8, expCy.zoom() * delta));
+    expCy.animate({ zoom: z, duration: 120 }, { duration: 140 });
+  }, { passive:false });
+
+  // ---- keyboard ----
+  window.addEventListener('keydown', function(ev) {
+    if (!expCy || !document.getElementById('page-graph').classList.contains('active')) return;
+    const tag = (ev.target && ev.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') {
+      if (ev.key === 'Escape') ev.target.blur();
+      return;
+    }
+    const pan = 90;
+    if (ev.key === '=' || ev.key === '+') { expZoomStep(1); ev.preventDefault(); }
+    else if (ev.key === '-' || ev.key === '_') { expZoomStep(-1); ev.preventDefault(); }
+    else if (ev.key === '0') { mapFit(70); ev.preventDefault(); }
+    else if (ev.key === '/') { const s = document.getElementById('mapSearch'); if (s) s.focus(); ev.preventDefault(); }
+    else if (ev.key === 'Escape') { mapClearSelection(); mapCloseDetail(); }
+    else if (ev.key === 'Backspace') { expGoBack(); ev.preventDefault(); }
+    else if (ev.key === 'f' || ev.key === 'F') { mapCenterSelection(); }
+    else if (ev.key === 'ArrowLeft') { expCy.pan({ x: expCy.pan().x + pan, y: expCy.pan().y }); }
+    else if (ev.key === 'ArrowRight') { expCy.pan({ x: expCy.pan().x - pan, y: expCy.pan().y }); }
+    else if (ev.key === 'ArrowUp') { expCy.pan({ x: expCy.pan().x, y: expCy.pan().y + pan }); }
+    else if (ev.key === 'ArrowDown') { expCy.pan({ x: expCy.pan().x, y: expCy.pan().y - pan }); }
+  });
+
+  // ---- search wiring ----
+  const searchEl = document.getElementById('mapSearch');
+  if (searchEl) {
+    let t = null;
+    searchEl.addEventListener('input', function() {
+      clearTimeout(t);
+      t = setTimeout(() => { mapSearch(searchEl.value); mapPane('results'); }, 180);
+    });
+    searchEl.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') {
+        const first = document.querySelector('#mapResultsList .mres');
+        if (first) first.click();
+      } else if (ev.key === 'Escape') { mapClearSearch(); }
+    });
+  }
+}
+
+function loadGraph(data, codeMap) {
+  graphData = data || { nodes: [], edges: [] };
+  loadedCode = codeMap || {};
+  uploaded = true;
+  rebuildEngine(graphData.nodes || [], graphData.edges || []);
+  try { graphSummary = graphEngine.getSummary(); } catch (e) { graphSummary = null; }
+  mapIdx = null;                 // invalidate the cached map index
+  mapScope = { kind:'project', id:null };
+  mapSel = null;
+  expPath = [];
+  mapHasInitialFit = false;
+  if (!window.expCy) initExpCy();
+  renderDashboard();
+  showModules();
+  if (!localStorage.getItem('graphTutDismissed') && document.getElementById('page-graph').classList.contains('active'))
+    document.getElementById('expTutorial').classList.add('show');
+}
+
+function dismissTutorial() {
+  document.getElementById('expTutorial').classList.remove('show');
+  if (document.getElementById('tutorialDontShow').checked) localStorage.setItem('graphTutDismissed','1');
+}
+
+// ===== ARCHITECTURE =====
+let archCyInstance = null;
+function renderArchitecture() {
+  const container = document.getElementById('archContent');
+  const modules = groupByModule();
+  if(!modules.length) { container.innerHTML = '<div class="empty-state"><div class="big">📐</div>No modules detected</div>'; return; }
+  // Compute module stats
+  const modStats = {};
+  modules.forEach(m => { modStats[m.name] = { files:0, funcs:0, classes:0, apis:0, models:0, incoming:[], outgoing:[] }; });
+  graphEngine.nodes.filter(n => n.type === 'file').forEach(f => {
+    const mn = moduleOfId(f.id);
+    if (modStats[mn]) modStats[mn].files++;
+  });
+  graphEngine.nodes.forEach(n => {
+    if (n.type === 'function') { const mn = moduleOfId(n.file||n.id); if (modStats[mn]) modStats[mn].funcs++; }
+    if (n.type === 'class') { const mn = moduleOfId(n.file||n.id); if (modStats[mn]) modStats[mn].classes++; }
+    if (n.type === 'api') { const mn = moduleOfId(n.file||n.id); if (modStats[mn]) modStats[mn].apis++; }
+    if (n.type === 'model') { const mn = moduleOfId(n.file||n.id); if (modStats[mn]) modStats[mn].models++; }
+  });
+  (graphEngine.edges||[]).forEach(e => {
+    const fm = moduleOfId(e.from), tm = moduleOfId(e.to);
+    if (fm && tm && fm !== tm) {
+      if (modStats[fm] && !modStats[fm].outgoing.includes(tm)) modStats[fm].outgoing.push(tm);
+      if (modStats[tm] && !modStats[tm].incoming.includes(fm)) modStats[tm].incoming.push(fm);
+    }
+  });
+
+  let h = `<div class="arch-map" id="archMap"><div id="archCy"></div>
+      <div class="arch-map-hint">🖱️ Drag to move · scroll to zoom · hover a block to see what it uses</div>
+      <div class="arch-map-legend"><span>🗺️ Arrow = "module A uses module B"</span></div>
+    </div>`;
+
+  h += `<div class="arch-grid">`;
+  modules.forEach((m,i) => {
+    const s = modStats[m.name] || {};
+    const cc = getModuleColor(m.name);
+    const deps = [...new Set([...s.outgoing, ...s.incoming])];
+    h += `
+    <div class="arch-card" style="border-top:4px solid ${cc.main}" onclick="openModuleInGraph('${jsq(m.name)}')">
+      <div class="arch-name"><span class="arch-icon" style="background:${cc.main};color:#fff">${m.icon||'📁'}</span>${m.name}</div>
+      <div class="arch-stats">
+        <span class="arch-stat"><span class="as-v">${s.files||0}</span> files</span>
+        <span class="arch-stat"><span class="as-v">${s.funcs||0}</span> funcs</span>
+        <span class="arch-stat"><span class="as-v">${s.classes||0}</span> classes</span>
+        <span class="arch-stat"><span class="as-v">${s.apis||0}</span> APIs</span>
+      </div>
+      ${s.outgoing.length ? `<div class="arch-deps"><span class="arch-deps-label" style="color:${cc.main}">➜ Uses</span> ${s.outgoing.map(d => `<span class="arch-dep-tag" onclick="event.stopPropagation();openModuleInGraph('${jsq(d)}')">${d}</span>`).join('')}</div>` : '<div class="arch-deps"><span class="arch-deps-label" style="color:var(--text2)">➜ Uses</span> <span style="color:var(--text2);font-size:.64rem">nothing (standalone)</span></div>'}
+      ${s.incoming.length ? `<div class="arch-deps"><span class="arch-deps-label" style="color:var(--accent)">⬅ Used by</span> ${s.incoming.map(d => `<span class="arch-dep-tag" onclick="event.stopPropagation();openModuleInGraph('${jsq(d)}')">${d}</span>`).join('')}</div>` : ''}
+    </div>`;
+  });
+  h += `</div>`;
+  container.innerHTML = h;
+  renderArchMap(modules, modStats);
+}
+
+function renderArchMap(modules, modStats) {
+  if(archCyInstance){try{archCyInstance.destroy()}catch(e){}archCyInstance=null;}
+  const el = document.getElementById('archCy');
+  if(!el) return;
+  archCyInstance = cytoscape({
+    container: el,
+    style: [
+      { selector:'node', style:{ 'label':'data(label)', 'font-size':'12px', 'font-weight':700, 'color':'#fff', 'text-valign':'center', 'text-halign':'center', 'text-wrap':'wrap', 'text-max-width':'110px', 'shape':'round-rectangle', 'width':110, 'height':56, 'border-width':2.5, 'border-color':'#fff', 'shadow-blur':22, 'shadow-opacity':0.9, 'text-outline-width':2, 'text-outline-color':'rgba(15,23,42,0.45)' } },
+      { selector:'edge', style:{ 'width':3, 'curve-style':'bezier', 'target-arrow-shape':'triangle', 'arrow-scale':0.9, 'line-color':'#94a3b8', 'target-arrow-color':'#94a3b8', 'underlay-padding':4, 'underlay-color':'rgba(255,255,255,0.85)', 'underlay-opacity':0.6 } },
+      { selector:'.hl', style:{ 'border-width':5, 'border-color':'#0f172a' } }
+    ],
+    layout:{ name:'preset' },
+    minZoom:0.3, maxZoom:2.5, wheelSensitivity:0.3
+  });
+  modules.forEach(m => {
+    const cc = getModuleColor(m.name);
+    const node = archCyInstance.add({ group:'nodes', data:{ id:m.name, label:(m.icon||'📦')+'\n'+m.name, module:m.name } });
+    node.style({ 'background-color':cc.main, 'background-gradient-stop-color-0':cc.light, 'background-gradient-stop-color-1':cc.road, 'shadow-color':cc.glow });
+    node.data('out', (modStats[m.name].outgoing||[]));
+  });
+  const seen = {};
+  modules.forEach(m => {
+    (modStats[m.name].outgoing||[]).forEach(t => {
+      const k = m.name+'|'+t;
+      if(seen[k] || !archCyInstance.getElementById(t).length) return;
+      seen[k] = true;
+      archCyInstance.add({ group:'edges', data:{ id:'e:'+k, source:m.name, target:t } });
+    });
+  });
+  runMiniLayout(archCyInstance, { nodeRepulsion:5000, idealEdgeLength:120, nodeOverlap:16, edgeElasticity:40, gravity:0.6, componentSpacing:90, numIter:600 }, 30);
+  archCyInstance.on('mouseover','node',function(e){
+    const n = e.target;
+    archCyInstance.elements().removeClass('hl');
+    n.addClass('hl');
+    const outs = n.data('out')||[];
+    n.connectedEdges().forEach(function(edge){
+      edge.style({'line-color':'#4f46e5','target-arrow-color':'#4f46e5','width':5});
+      edge.connectedNodes().addClass('hl');
+    });
+    el.style.cursor='pointer';
+  });
+  archCyInstance.on('mouseout','node',function(e){
+    archCyInstance.edges().style({'line-color':'','target-arrow-color':'','width':''});
+    archCyInstance.elements().removeClass('hl');
+    el.style.cursor='';
+  });
+  archCyInstance.on('tap','node',function(e){ openModuleInGraph(e.target.data('module')); });
+}
+
+function openModuleInGraph(name) {
+  switchNav('graph');
+  setTimeout(function(){
+    if(!window.expCy) initExpCy();
+    showModuleFiles(name);
+  }, 180);
+}
+function switchNav(page) { document.querySelector(`.nav-item[data-page="${page}"]`)?.click(); }
+
+// Run a compact cose layout on a mini-graph AFTER its nodes exist, and never
+// collapse when the container is hidden (0-size) — give cose a virtual viewport.
+function runMiniLayout(cy, opts, pad) {
+  if (!cy || !cy.elements().length) return;
+  cy.resize();
+  var cw = cy.width(), ch = cy.height();
+  var bbox = (cw && ch) ? { x1:0, y1:0, w:cw, h:ch } : { x1:0, y1:0, w:900, h:520 };
+  try {
+    cy.layout(Object.assign({
+      name:'cose', animate:false, randomize:true, fit:true, padding:(pad||30), boundingBox:bbox,
+      nodeRepulsion:3000, nodeOverlap:10, idealEdgeLength:70, edgeElasticity:40,
+      nestingFactor:1.2, gravity:0.6, componentSpacing:70, numIter:150
+    }, opts || {})).run();
+  } catch (e) {}
+}
+
+// Refit whichever mini-graph just became visible (fixes "everything in a corner")
+function refitVisibleGraph() {
+  [[archCyInstance,'archCy'],[modCyInstance,'modCy'],[impactCyInstance,'impactCy']].forEach(function(pair){
+    var c = pair[0];
+    if (!c) return;
+    try {
+      var el = document.getElementById(pair[1]);
+      if (!el || !el.offsetParent) return; // not visible
+      c.resize();
+      if (c.elements().length) c.fit(c.elements(), 30);
+    } catch (e) {}
+  });
+}
+
+// ===== MODULES =====
+function renderModules() {
+  const modules = groupByModule();
+  document.getElementById('modGrid').innerHTML = modules.map(m =>
+    `<div class="module-card" onclick="showModule('${jsq(m.name)}')">
+      <div class="mc-icon">${m.icon||'📁'}</div>
+      <div class="mc-name">${m.name}</div>
+      <div class="mc-count">${m.count} files</div>
+    </div>`
+  ).join('');
+}
+
+function showModule(name) {
+  document.getElementById('modListView').style.display='none';
+  document.getElementById('modDetailView').classList.add('show');
+  if(modCyInstance){try{modCyInstance.destroy()}catch(e){}modCyInstance=null;}
+  const files = filesInModule(name);
+  const fIds = new Set(files.map(f=>f.id));
+  document.getElementById('modDetailContent').innerHTML = `
+    <h3 style="font-size:.85rem;margin-bottom:6px">${getModuleIcon(name)} ${name}</h3>
+    <p style="font-size:.68rem;color:var(--text2);margin-bottom:8px">${files.length} files</p>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input id="modFilter" placeholder="Filter files..." style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:.78rem;outline:none" oninput="renderFileTree('${jsq(name)}')">
+      <select id="modSort" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:.78rem;outline:none" onchange="renderFileTree('${jsq(name)}')">
+        <option value="name">Name</option>
+        <option value="outgoing">Out</option>
+        <option value="incoming">In</option>
+        <option value="total">Total</option>
+      </select>
+    </div>
+    <div id="modFileTree"></div>
+    <div class="mod-graph"><div id="modCy"></div></div>`;
+  renderFileTree(name);
+  // Subgraph
+  const subEdges = graphEngine.edges.filter(e=>fIds.has(e.from)&&fIds.has(e.to));
+  if(!subEdges.length) return;
+  modCyInstance = cytoscape({
+    container: document.getElementById('modCy'),
+    style: [
+      { selector:'node',style:{'label':'data(label)','font-size':'7px','color':'#EDF2F7','text-valign':'center','text-halign':'center','background-color':'#6366f1','width':40,'height':20,'border-width':1,'border-color':'rgba(255,255,255,0.06)','shape':'round-rectangle'} },
+      { selector:'edge',style:{'width':1.2,'line-color':'rgba(100,116,139,0.4)','target-arrow-color':'rgba(100,116,139,0.5)','target-arrow-shape':'triangle','arrow-scale':0.3,'curve-style':'bezier'} },
+      { selector:':selected',style:{'border-color':'#fff','border-width':2} }
+    ],
+    layout:{name:'preset'},
+    minZoom:0.2,maxZoom:3
+  });
+  modCyInstance.add(files.map(f=>({group:'nodes',data:{id:f.id,label:f.label,type:f.type}})));
+  modCyInstance.add(subEdges.map(e=>({group:'edges',data:{id:e.from+'|'+e.to,source:e.from,target:e.to,label:e.label,type:e.type}})));
+  runMiniLayout(modCyInstance, { idealEdgeLength:60, nodeRepulsion:2500, nodeOverlap:10, gravity:0.5, componentSpacing:60 }, 20);
+  modCyInstance.on('tap','node',function(ev){showNodeDetail(ev.target.data('id'));});
+}
+
+// All file nodes that belong to a module — matches groupByModule()/moduleOfId
+// exactly (root-level files are module "other").
+function filesInModule(moduleName) {
+  return graphEngine.nodes.filter(n=>n.type==='file' && moduleOfId(n.id)===moduleName);
+}
+
+function renderFileTree(moduleName) {
+  const files = filesInModule(moduleName);
+  const filter = (document.getElementById('modFilter')?.value||'').toLowerCase();
+  const sort = document.getElementById('modSort')?.value||'name';
+  let filtered = filter ? files.filter(f=>f.label.toLowerCase().includes(filter)||f.id.toLowerCase().includes(filter)) : files;
+  filtered.sort((a,b)=>{
+    const ai=(graphEngine.getIncoming(a.id)||[]).length, ao=(graphEngine.getOutgoing(a.id)||[]).length;
+    const bi=(graphEngine.getIncoming(b.id)||[]).length, bo=(graphEngine.getOutgoing(b.id)||[]).length;
+    if(sort==='outgoing') return bo-ao;
+    if(sort==='incoming') return bi-ai;
+    if(sort==='total') return (bi+bo)-(ai+ao);
+    return a.label.localeCompare(b.label);
+  });
+  const tree = {children:[],files:[]};
+  filtered.forEach(f=>{
+    const parts=f.id.split('/');
+    let cur=tree;
+    for(let i=1;i<parts.length-1;i++){
+      let ch=cur.children.find(c=>c.name===parts[i]);
+      if(!ch){ch={name:parts[i],children:[],files:[]};cur.children.push(ch);}
+      cur=ch;
+    }
+    cur.files.push(f);
+  });
+  // Files that live directly in the module sit in tree.files — render them too
+  // (previously only tree.children were shown, so direct files vanished).
+  let h = '';
+  (tree.files||[]).forEach(f=>{ h += renderFileRow(f); });
+  h += renderTreeNodes(tree.children, '');
+  if (!h) h = '<div style="font-size:.68rem;color:var(--text2);padding:6px 8px">No files</div>';
+  document.getElementById('modFileTree').innerHTML = h;
+}
+
+function renderFileRow(f) {
+  const inc=(graphEngine.getIncoming(f.id)||[]).length, out=(graphEngine.getOutgoing(f.id)||[]).length;
+  return `<div style="margin-left:8px;padding:7px 8px;font-size:.74rem;cursor:pointer;border-radius:8px;display:flex;justify-content:space-between;gap:8px" class="file-row" onclick="showNodeDetail('${jsq(f.id)}')">
+    <span>📄 ${f.label}</span>
+    <span style="color:var(--text2);font-size:.64rem;flex-shrink:0">→${out} ←${inc}</span>
+  </div>`;
+}
+
+function renderTreeNodes(nodes) {
+  let h='';
+  nodes.forEach(n=>{
+    const ec = n.children.length + n.files.length;
+    h+=`<div style="margin-left:10px">
+      <div class="dir-row" data-expanded="true" onclick="toggleDir(this)" style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:.78rem;cursor:pointer;border-radius:8px">
+        <span class="dir-icon">📂</span><span style="font-weight:500">${n.name}</span><span style="color:var(--text2);font-size:.58rem;margin-left:2px">(${ec})</span>
+      </div>
+      <div class="dir-children">`;
+    n.children.forEach(c=>{h+=renderTreeNodes([c]);});
+    (n.files||[]).forEach(f=>{
+      const inc=(graphEngine.getIncoming(f.id)||[]).length, out=(graphEngine.getOutgoing(f.id)||[]).length;
+      h+=`<div style="margin-left:18px;padding:7px 8px;font-size:.74rem;cursor:pointer;border-radius:8px;display:flex;justify-content:space-between;gap:8px" class="file-row" onclick="showNodeDetail('${jsq(f.id)}')">
+        <span>📄 ${f.label}</span>
+        <span style="color:var(--text2);font-size:.64rem;flex-shrink:0">→${out} ←${inc}</span>
+      </div>`;
+    });
+    h+=`</div></div>`;
+  });
+  return h;
+}
+
+function toggleDir(el) {
+  const expanded = el.dataset.expanded==='true';
+  el.dataset.expanded = expanded?'false':'true';
+  el.querySelector('.dir-icon').textContent = expanded?'📁':'📂';
+  const ch = el.parentElement.querySelector('.dir-children');
+  if(ch) ch.style.display = expanded?'none':'block';
+}
+
+function backToModules() {
+  document.getElementById('modListView').style.display='block';
+  document.getElementById('modDetailView').classList.remove('show');
+}
+
+// ===== NODE DETAIL =====
+// Works from the graph engine (not just the current explorer view) so that
+// dead-code / impact / chat results can always open their source location.
+function openDetail(nodeId) {
+  const nd = graphEngine ? graphEngine.getNode(nodeId) : null;
+  if (!nd) return;
+  const o = document.getElementById('detailOverlay');
+  o.classList.add('open');
+  document.getElementById('doTitle').textContent = nd.label || nodeId;
+  const inc = (graphEngine.getIncoming(nodeId) || []);
+  const out = (graphEngine.getOutgoing(nodeId) || []);
+  const loc = nd.file ? (nd.file + (nd.line ? ':' + nd.line : '')) : '-';
+  let h = `<div>
+    <span class="do-stat"><strong>Type</strong> ${escapeHtml(nd.type||'')}</span>
+    <span class="do-stat"><strong>Location</strong> ${escapeHtml(loc)}</span>
+    <span class="do-stat"><strong>→</strong> ${out.length}</span>
+    <span class="do-stat"><strong>←</strong> ${inc.length}</span>
+  </div>`;
+
+  if (nd.line && loadedCode[nd.file]) {
+    h += `<div class="do-sect">Source${nd.line?' (line '+nd.line+')':''}</div><div class="do-code">${snippet(nd.file, nd.line, 6)}</div>`;
+  } else if (loadedCode[nd.file]) {
+    h += `<div class="do-sect">Source Code</div><div class="do-code">${hl(loadedCode[nd.file])}</div>`;
+  }
+
+  if (out.length) {
+    h += `<div class="do-sect">Depends on / calls</div>`;
+    out.forEach(e => h += `<div class="conn-item" onclick="openDetail('${jsq(e.to)}')">${escapeHtml(e.label||e.type)} → ${escapeHtml(short(e.to))}</div>`);
+  }
+  if (inc.length) {
+    h += `<div class="do-sect">Used by / called by</div>`;
+    inc.forEach(e => h += `<div class="conn-item in" onclick="openDetail('${jsq(e.from)}')">${escapeHtml(short(e.from))} ${escapeHtml(e.label||e.type)}</div>`);
+  }
+  document.getElementById('doBody').innerHTML = h;
+}
+
+// Back-compat: clicking a node in the explorer.
+function showNodeDetail(nodeId) {
+  if (!graphEngine || !graphEngine.getNode(nodeId)) {
+    if (!expCy) return;
+    const n = expCy.getElementById(nodeId);
+    if (!n || !n.length) return;
+  }
+  openDetail(nodeId);
+}
+
+// Safe inside BOTH a single-quoted JS string and a double-quoted HTML attribute (inline handlers).
+function jsq(s) {
+  return escapeHtml(String(s == null ? '' : s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,'\\r'));
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Show a few lines of real source around a location.
+function snippet(file, line, radius) {
+  const src = loadedCode[file];
+  if (!src) return '';
+  const lines = src.split('\n');
+  const center = Math.max(1, line || 1);
+  const start = Math.max(1, center - radius);
+  const end = Math.min(lines.length, center + radius);
+  let out = '';
+  for (let i = start; i <= end; i++) {
+    const mark = i === center ? '▶' : ' ';
+    const ln = String(i).padStart(4, ' ');
+    if (i === center) {
+      out += `<span class="snip-hl">${mark} ${ln}  ${escapeHtml(lines[i-1])}</span>\n`;
+    } else {
+      out += `${mark} ${ln}  ${escapeHtml(lines[i-1])}\n`;
+    }
+  }
+  return out;
+}
+
+function closeOverlay(){document.getElementById('detailOverlay').classList.remove('open');}
+
+function focusNode(id) {
+  if (!expCy) initExpCy();
+  const idx = mapIndex();
+  if (idx.byId.has(id)) { mapFocusEntity(id); return; }
+  const r = graphEngine ? graphEngine.search(id) : [];
+  if (r.length) mapFocusEntity(r[0].id);
+}
+
+// ===== SEARCH =====
+function doSearch(q) {
+  const dd=document.getElementById('searchDD');
+  if(!q||!graphEngine){dd.style.display='none';return;}
+  const r=graphEngine.search(q);
+  if(!r.length){dd.style.display='none';return;}
+  dd.style.display='block';
+  const pageSize=8, total=r.length;
+  dd.innerHTML=r.slice(0,pageSize).map(x=>`<div style="padding:7px 10px;font-size:.78rem;cursor:pointer;display:flex;align-items:center;gap:6px;border-radius:6px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''" onclick="switchNav('graph');setTimeout(()=>focusNode('${jsq(x.id)}'),200);dd.style.display='none'"><span style="width:7px;height:7px;border-radius:50%;background:${TC[x.type]||'#666'};display:inline-block;flex-shrink:0"></span>${escapeHtml(x.label)}<span style="color:var(--text2);font-size:.6rem;margin-left:auto;background:var(--surface2);padding:1px 6px;border-radius:4px">${escapeHtml(x.type)}</span></div>`).join('')+
+    (total>pageSize?`<div style="padding:7px 8px;font-size:.72rem;color:var(--primary);cursor:pointer;text-align:center;border-top:1px solid var(--border);font-weight:600">+${total-pageSize} more</div>`:'');
+}
+
+function showAllSearchResults(q) {
+  // Not available in explorer mode
+}
+document.addEventListener('click',function(e){if(!e.target.closest('.search-wrap'))document.getElementById('searchDD').style.display='none';});
+
+// ===== IMPACT =====
+function impactSearch(q) {
+  const dd = document.getElementById('impactDD');
+  if (!graphEngine) { dd.style.display = 'none'; return; }
+  q = (q || '').trim();
+  if (!q) { dd.style.display = 'none'; return; }
+  const r = graphEngine.search(q).slice(0, 8);
+  if (!r.length) { dd.style.display = 'none'; return; }
+  dd.style.display = 'block';
+  dd.innerHTML = r.map(n =>
+    `<div class="impact-dd-item" onclick="pickImpact('${jsq(n.id)}')">
+      <span class="imp-dot" style="background:${TC[n.type]||'#64748b'}"></span>
+      <span class="imp-lbl">${n.label||n.id}</span>
+      <span class="imp-type">${n.type}</span>
+    </div>`).join('');
+}
+function pickImpact(id) {
+  document.getElementById('impactId').value = id;
+  document.getElementById('impactDD').style.display = 'none';
+  doImpact();
+}
+document.addEventListener('click', function(e){ if(!e.target.closest('.impact-input')) { const d=document.getElementById('impactDD'); if(d) d.style.display='none'; } });
+
+function doImpact() {
+  const raw=document.getElementById('impactId').value.trim();
+  if(!raw) return;
+  // Resolve free text to a real node id (exact id, else best search hit).
+  let id = raw;
+  if(!(graphEngine && graphEngine.getNode(id))){
+    const hits = graphEngine ? graphEngine.search(raw) : [];
+    if(hits.length) id = hits[0].id;
+  }
+  const div=document.getElementById('impactR');
+  div.innerHTML='<span style="font-size:.68rem;color:var(--text2)">Analyzing dependencies…</span>';
+  fetch(API+'/api/impact?node='+encodeURIComponent(id)).then(r=>r.json()).then(d=>{
+    if(d.error || d.resolved===false){
+      div.innerHTML=`<div class="impact-err">❌ ${escapeHtml(d.error||'Could not resolve that symbol')}<div style="font-size:.62rem;color:var(--text2);margin-top:3px">Pick a file or function from the dropdown (or type a closer name) and try again.</div></div>`;
+      if(impactCyInstance){try{impactCyInstance.destroy()}catch(e){}impactCyInstance=null;}
+      return;
+    }
+    const s=d.scope||{};
+    let h=`<div style="font-size:.7rem;margin-bottom:6px">⚠️ <strong>${escapeHtml(d.node?.label||d.nodeId)}</strong><span style="color:var(--text2)"> · ${escapeHtml(d.nodeLocation||'')}</span></div>`;
+    h+=`<div class="impact-scope">Changing this affects <strong>${d.totalAffected}</strong> node(s): <strong>${s.directCount||0}</strong> direct, <strong>${s.indirectCount||0}</strong> indirect · <strong>${s.files||0}</strong> file(s) across <strong>${s.modules||0}</strong> module(s)</div>`;
+    if(d.direct&&d.direct.length){
+      h+=`<div class="impact-group">➜ Direct dependents (break immediately)</div>`;
+      d.direct.slice(0,50).forEach(a=>{h+=impactRow(a);});
+    }else{
+      h+=`<div style="font-size:.66rem;color:var(--green);margin:6px 0">✅ Nothing else depends on this.</div>`;
+    }
+    if(d.indirect&&d.indirect.length){
+      h+=`<div class="impact-group">⇢ Indirect (break through other code)</div>`;
+      d.indirect.slice(0,50).forEach(a=>{h+=impactRow(a);});
+    }
+    div.innerHTML=h;
+    renderImpactViz(d);
+  }).catch(e=>{div.innerHTML='<span style="color:var(--red)">'+escapeHtml(e.message)+'</span>';});
+}
+
+function impactRow(a){
+  const nd=a.node||{};
+  const loc=nd.file?(escapeHtml(nd.file)+(nd.line?':'+nd.line:'')):'';
+  const path=(a.path&&a.path.length>1)?a.path.map(p=>(p.label||p.type)).join(' → '):'';
+  return `<div class="impact-item" onclick="openDetail('${jsq(a.id)}')">
+    <span class="impact-lbl">${escapeHtml(nd.label||a.id)}</span>
+    ${a.reason?`<span class="impact-reason">${escapeHtml(a.reason)}</span>`:''}
+    ${loc?`<span class="impact-loc">${loc}</span>`:''}
+    ${path?`<span class="impact-path">${escapeHtml(path)}</span>`:''}
+  </div>`;
+}
+
+function renderImpactViz(d) {
+  if(impactCyInstance){try{impactCyInstance.destroy()}catch(e){}impactCyInstance=null;}
+  impactCyInstance = cytoscape({
+    container: document.getElementById('impactCy'),
+    style: [
+      { selector:'node',style:{'label':'data(label)','font-size':'7px','color':'#EDF2F7','text-valign':'center','text-halign':'center','background-color':'#6366f1','width':28,'height':28,'border-width':1.5,'border-color':'rgba(255,255,255,0.06)','text-max-width':'50px','text-wrap':'ellipsis'} },
+      { selector:'node[type="file"]',style:{'shape':'round-rectangle','width':50,'height':20,'font-size':'6px'} },
+      { selector:'node[type="function"]',style:{'background-color':'#00D4B0','shape':'ellipse','width':22,'height':22} },
+      { selector:'node[type="class"]',style:{'background-color':'#f59e0b','shape':'diamond','width':24,'height':24} },
+      { selector:'node[type="api"]',style:{'background-color':'#ec4899','shape':'round-triangle','width':30,'height':30} },
+      { selector:'.target',style:{'border-color':'#ff7b72','border-width':3,'width':36,'height':36} },
+      { selector:'edge',style:{'width':1.2,'line-color':'rgba(100,116,139,0.35)','target-arrow-color':'rgba(100,116,139,0.45)','target-arrow-shape':'triangle','arrow-scale':0.3,'curve-style':'bezier','font-size':'5px','color':'rgba(51,65,85,0.5)'} },
+    ],
+    layout:{name:'preset'}, minZoom:0.2, maxZoom:3, wheelSensitivity:0.3
+  });
+  const nSet = new Set([d.nodeId]);
+  const eSet = [];
+  (d.affected||[]).forEach(a=>{
+    nSet.add(a.id);
+    (a.path||[]).forEach(p=>{
+      nSet.add(p.from); nSet.add(p.to);
+      if(!eSet.some(e=>e.from===p.from&&e.to===p.to)) eSet.push({from:p.from,to:p.to,label:p.label,type:p.type});
+    });
+  });
+  const ns = [];
+  nSet.forEach(nid=>{ const nd = graphEngine.getNode(nid); if(nd) ns.push({group:'nodes',data:{id:nd.id,label:nd.label,type:nd.type}}); });
+  impactCyInstance.add(ns);
+  impactCyInstance.add(eSet.filter(e=>impactCyInstance.getElementById(e.from).length&&impactCyInstance.getElementById(e.to).length)
+    .map(e=>({group:'edges',data:{id:e.from+'|'+e.to,source:e.from,target:e.to,label:e.label,type:e.type}})));
+  const tn = impactCyInstance.getElementById(d.nodeId);
+  if(tn.length) tn.addClass('target');
+  runMiniLayout(impactCyInstance, { idealEdgeLength:60, nodeRepulsion:3000, nodeOverlap:10, gravity:0.6, componentSpacing:60 }, 30);
+  impactCyInstance.on('tap','node',function(ev){openDetail(ev.target.data('id'));});
+}
+
+function findDead() {
+  const div=document.getElementById('deadR');
+  div.innerHTML='<span style="font-size:.68rem;color:var(--text2)">Analyzing call graph…</span>';
+  fetch(API+'/api/dead-code').then(r=>r.json()).then(d=>{
+    if(d&&d.error){div.innerHTML='<span style="color:var(--red)">'+escapeHtml(d.error)+'</span>';return;}
+    if(!d||!d.length){div.innerHTML='<span style="color:var(--green)">✅ No unused functions or classes detected.</span>';return;}
+    const confirmed=d.filter(x=>x.confidence==='confirmed');
+    const possible=d.filter(x=>x.confidence!=='confirmed');
+    let h='';
+    h+=`<div style="font-size:.68rem;color:var(--text2);margin-bottom:6px"><strong>${confirmed.length}</strong> confirmed · <strong>${possible.length}</strong> possible</div>`;
+    const row=(x)=>`<div class="dead-item" onclick="openDetail('${jsq(x.id)}')">
+        <span class="dead-dot" style="background:${x.confidence==='confirmed'?'var(--red)':'#f59e0b'}"></span>
+        <span class="dead-main"><span class="dead-lbl">${escapeHtml(x.label||x.id)}</span>
+        <span class="dead-loc">${escapeHtml(x.file||'')}${x.line?':'+x.line:''}</span></span>
+        <span class="dead-badge ${x.confidence==='confirmed'?'dc-bad':'dc-warn'}">${x.confidence}</span>
+      </div>${x.reasons&&x.reasons.length?`<div class="dead-why">↳ ${escapeHtml(x.reasons.join('; '))}</div>`:''}`;
+    if(confirmed.length){h+=`<div class="dead-group">⚠️ Confirmed unused</div>`+confirmed.slice(0,50).map(row).join('');}
+    if(possible.length){h+=`<div class="dead-group">❔ Possible (verify before deleting)</div>`+possible.slice(0,50).map(row).join('');}
+    if(d.length>100){h+=`<div style="font-size:.62rem;color:var(--text2);margin-top:4px">Showing first 50 of each group.</div>`;}
+    div.innerHTML=h;
+  }).catch(e=>{div.innerHTML='<span style="color:var(--red)">'+escapeHtml(e.message)+'</span>';});
+}
+
+// ===== AI CHAT (grounded in the loaded repository) =====
+// Answers are produced from the real parsed graph + source, never fabricated.
+// A remote LLM is optional: if window.AI_ENDPOINT is set it is asked to phrase
+// the answer, but the grounding (facts, files, lines) always comes from here.
+function askAI() {
+  const inp=document.getElementById('chatInput');
+  const q=inp.value.trim();
+  if(!q) return;
+  const msgs=document.getElementById('chatMsgs');
+  msgs.innerHTML+=`<div class="chat-msg user"><div class="cm-b">${escapeHtml(q)}</div></div>`;
+  inp.value='';
+  msgs.scrollTop=msgs.scrollHeight;
+
+  if(!graphEngine || !uploaded){
+    msgs.innerHTML+=`<div class="chat-msg ai"><div class="cm-b">I don't have a project to analyze yet. Upload a project (or paste some code) first, then ask me anything about it.</div></div>`;
+    msgs.scrollTop=msgs.scrollHeight;
+    return;
+  }
+
+  const holder=document.createElement('div');
+  holder.className='chat-msg ai';
+  holder.innerHTML=`<div class="cm-b chat-thinking">Reading your code…</div>`;
+  msgs.appendChild(holder);
+  msgs.scrollTop=msgs.scrollHeight;
+
+  Promise.resolve(answerQuestion(q)).then(html=>{
+    holder.querySelector('.cm-b').classList.remove('chat-thinking');
+    holder.querySelector('.cm-b').innerHTML=html;
+    msgs.scrollTop=msgs.scrollHeight;
+  }).catch(e=>{
+    holder.querySelector('.cm-b').innerHTML='⚠️ '+escapeHtml(e.message||'Could not answer that.');
+  });
+}
+
+// Find the graph entities (symbols/files/modules) mentioned in a question.
+function chatEntities(q){
+  const stop=new Set(['the','and','for','with','that','this','from','into','how','what','where','which','when','why','who','does','work','works','project','code','codebase','file','files','function','functions','class','classes','module','modules','break','breaks','change','changes','use','uses','used','depend','depends','call','calls','called','about','overview','summary','please','help','tell','show','find','list','give','between','impact','affect','affects','remove','delete','modify']);
+  const words=(q.match(/[A-Za-z_][\w.\/-]*/g)||[]).filter(w=>w.length>2 && !stop.has(w.toLowerCase()));
+  const seen=new Set(), hits=[];
+  const push=n=>{ if(n&&!seen.has(n.id)){ seen.add(n.id); hits.push(n); } };
+  (graphEngine.search(q)||[]).forEach(push);
+  words.forEach(w=>{ (graphEngine.search(w)||[]).forEach(push); });
+  const ql=q.toLowerCase();
+  const score=n=>{
+    const lbl=(n.label||'').replace(/\(\)$/,'').toLowerCase();
+    const id=n.id.toLowerCase();
+    let s=0;
+    if(words.some(w=>lbl===w.toLowerCase())) s+=12;
+    if(words.some(w=>id.endsWith('::'+w.toLowerCase()))) s+=10;
+    if(words.some(w=>id.includes('/'+w.toLowerCase()+'.'))) s+=8;
+    if(lbl.length>2 && ql.includes(lbl)) s+=4;
+    if(n.type==='function'||n.type==='class') s+=2;
+    if(n.type==='file') s+=1;
+    return s;
+  };
+  hits.sort((a,b)=>score(b)-score(a));
+  return hits;
+}
+
+function chatLoc(n){
+  return `<span class="chat-loc">${escapeHtml(n.file||'')}${n.line?':'+n.line:''}</span>`;
+}
+function chatSnippet(n, radius){
+  if(!n.line||!loadedCode[n.file]) return '';
+  return `<pre class="chat-code">${snippet(n.file,n.line,radius||6)}</pre>`;
+}
+
+async function answerQuestion(q){
+  const ql=q.toLowerCase();
+  const ents=chatEntities(q);
+
+  // Intent: summary / what does this project do
+  if(/(what.*(project|codebase|repo).*do)|overview|summary|describe|about the project|what is this/.test(ql) && !/(break|depend|dead|unused|where|implement)/.test(ql)){
+    return summaryAnswer();
+  }
+  // Intent: dead / unused
+  if(/dead|unused|unreferenc|never used/.test(ql)) return await deadAnswer();
+  // Intent: impact / what breaks
+  if(/break|impact|affect|change|modify|remove|delete|safe to/.test(ql) && ents.length) return await impactAnswer(ents[0]);
+  // Intent: dependencies / who uses
+  if(/depend|who uses|used by|import|require|caller|called by|references/.test(ql)) return dependAnswer(q,ents);
+  // Intent: where / how does X work
+  if(/where|how does|how do|implement|locate|definition|defined|show me|source of/.test(ql)) return whereAnswer(q,ents);
+  // Intent: APIs
+  if(/\bapi\b|endpoint|route/.test(ql)) return apiAnswer();
+  // Intent: biggest / most connected
+  if(/biggest|largest|most connected|complex|hottest/.test(ql)) return biggestAnswer();
+  // Intent: architecture / modules
+  if(/module|architecture|structure|folder|organi/.test(ql)) return moduleAnswer();
+  // Fallback: if entities found, describe them; else guidance.
+  if(ents.length) return whereAnswer(q,ents);
+  return generalAnswer(q,ents);
+}
+
+function summaryAnswer(){
+  const s=graphSummary||graphEngine.getSummary();
+  const mods=groupByModule();
+  const langs=getLanguageDistribution();
+  const health=calcHealth(s);
+  let h=`<strong>Project overview</strong><br>`;
+  h+=`${s.files} files · ${(s.totalNodes-s.files)} functions/classes · ${s.apis||0} API endpoints · ${s.totalEdges} dependency edges.<br>`;
+  h+=`Health score: <strong>${health.score}/100</strong>.<br>`;
+  if(langs.length) h+=`Languages: ${langs.map(l=>`${escapeHtml(l.name)} (${l.count})`).join(', ')}.<br>`;
+  if(mods.length){
+    h+=`<div class="chat-sect">Top modules</div>`;
+    h+=mods.slice(0,6).map(m=>`<div class="chat-row">${m.icon||'📁'} <strong>${escapeHtml(m.name)}</strong> <span class="chat-mut">${m.count} files</span></div>`).join('');
+  }
+  h+=`<div class="chat-mut" style="margin-top:6px">Ask me e.g. "how does X work", "who uses Y", or "what breaks if I change Z".</div>`;
+  return h;
+}
+
+async function deadAnswer(){
+  let d;
+  try { d=await fetch(API+'/api/dead-code').then(r=>r.json()); } catch(e){ return 'Could not analyze dead code: '+escapeHtml(e.message); }
+  if(!d||!d.length) return '✅ No unused functions or classes detected.';
+  const confirmed=d.filter(x=>x.confidence==='confirmed');
+  const possible=d.filter(x=>x.confidence!=='confirmed');
+  let h=`<strong>${d.length}</strong> possibly unused symbol(s): <strong>${confirmed.length}</strong> confirmed, <strong>${possible.length}</strong> possible.<div class="chat-sect">Confirmed</div>`;
+  if(confirmed.length) h+=confirmed.slice(0,8).map(x=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(x.id)}')">${escapeHtml(x.label)}</span> ${chatLoc(x)}</div>`).join('');
+  else h+='<div class="chat-row chat-mut">none</div>';
+  if(possible.length){
+    h+=`<div class="chat-sect">Possible (exported / entry / test)</div>`;
+    h+=possible.slice(0,8).map(x=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(x.id)}')">${escapeHtml(x.label)}</span> ${chatLoc(x)}</div>`).join('');
+  }
+  h+=`<div class="chat-mut" style="margin-top:4px">Open the Impact &amp; Dead Code tab for the full list.</div>`;
+  return h;
+}
+
+async function impactAnswer(n){
+  let d;
+  try { d=await fetch(API+'/api/impact?node='+encodeURIComponent(n.id)).then(r=>r.json()); } catch(e){ return 'Could not analyze impact: '+escapeHtml(e.message); }
+  if(d.resolved===false||d.error) return `❌ ${escapeHtml(d.error||'Could not resolve that symbol.')}`;
+  const s=d.scope||{};
+  let h=`Changing <strong>${escapeHtml(d.node?.label||n.id)}</strong> ${chatLoc(d.node||n)} affects <strong>${d.totalAffected}</strong> node(s): ${s.directCount||0} direct, ${s.indirectCount||0} indirect, across ${s.files||0} file(s).`;
+  if(d.direct&&d.direct.length){
+    h+=`<div class="chat-sect">Breaks immediately</div>`;
+    h+=d.direct.slice(0,8).map(a=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(a.id)}')">${escapeHtml(a.node?.label||a.id)}</span> <span class="chat-mut">${escapeHtml(a.reason||'')}</span> ${chatLoc(a.node||{})}</div>`).join('');
+  } else {
+    h+=`<div class="chat-mut" style="margin-top:4px">Nothing directly depends on this — likely safe to change in isolation.</div>`;
+  }
+  if(d.indirect&&d.indirect.length){
+    h+=`<div class="chat-sect">Breaks through other code</div>`;
+    h+=d.indirect.slice(0,8).map(a=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(a.id)}')">${escapeHtml(a.node?.label||a.id)}</span> ${chatLoc(a.node||{})}<div class="chat-path">${escapeHtml((a.path||[]).map(p=>p.label||p.type).join(' → '))}</div></div>`).join('');
+  }
+  return h;
+}
+
+function dependAnswer(q,ents){
+  // Module query?
+  const mods=groupByModule();
+  const modMatch=mods.find(m=>new RegExp('\\b'+m.name.toLowerCase()+'\\b').test(q.toLowerCase()));
+  if(modMatch){
+    const prefix=modMatch.name+'/';
+    const importers=new Set();
+    (graphEngine.edges||[]).forEach(e=>{
+      const fm=moduleOfId(e.from), tm=moduleOfId(e.to);
+      if(tm===modMatch.name && fm!==modMatch.name) importers.add(fm);
+    });
+    let h=`Module <strong>${escapeHtml(modMatch.name)}</strong> (${modMatch.count} files) is used by ${importers.size} other module(s):`;
+    h+=importers.size?`<div class="chat-sect">Imported by</div>`+[...importers].map(m=>`<div class="chat-row">${escapeHtml(m)}</div>`).join(''):'<div class="chat-mut" style="margin-top:4px">nothing else in the project.</div>';
+    return h;
+  }
+  const n=ents[0];
+  if(!n) return generalAnswer(q,ents);
+  const inc=(graphEngine.getIncoming(n.id)||[]).filter(e=>e.type!=='defines');
+  let h=`<strong>${escapeHtml(n.label||n.id)}</strong> ${chatLoc(n)} is referenced by <strong>${inc.length}</strong> node(s).`;
+  if(inc.length){
+    h+=`<div class="chat-sect">Used by</div>`;
+    h+=inc.slice(0,12).map(e=>{const nn=graphEngine.getNode(e.from);return `<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(e.from)}')">${escapeHtml(nn?nn.label:e.from)}</span> <span class="chat-mut">${escapeHtml(e.label||e.type)}</span> ${chatLoc(nn||{})}</div>`;}).join('');
+  } else {
+    h+=`<div class="chat-mut" style="margin-top:4px">No incoming references found — it may be an entry point or unused.</div>`;
+  }
+  return h;
+}
+
+function whereAnswer(q,ents){
+  const n=ents[0];
+  if(!n) return generalAnswer(q,ents);
+  let h=`<strong>${escapeHtml(n.label||n.id)}</strong> <span class="chat-mut">(${escapeHtml(n.type)})</span> ${chatLoc(n)}.`;
+  const out=(graphEngine.getOutgoing(n.id)||[]);
+  const inc=(graphEngine.getIncoming(n.id)||[]).filter(e=>e.type!=='defines');
+  h+=chatSnippet(n,7);
+  if(out.length){h+=`<div class="chat-sect">It uses / calls</div>`+out.slice(0,6).map(e=>{const nn=graphEngine.getNode(e.to);return `<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(e.to)}')">${escapeHtml(nn?nn.label:e.to)}</span> <span class="chat-mut">${escapeHtml(e.label||e.type)}</span></div>`;}).join('');}
+  if(inc.length){h+=`<div class="chat-sect">Used by</div>`+inc.slice(0,6).map(e=>{const nn=graphEngine.getNode(e.from);return `<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(e.from)}')">${escapeHtml(nn?nn.label:e.from)}</span></div>`;}).join('');}
+  if(!out.length&&!inc.length) h+=`<div class="chat-mut" style="margin-top:4px">No connections detected for this symbol.</div>`;
+  return h;
+}
+
+function apiAnswer(){
+  const apis=graphEngine.nodes.filter(n=>n.type==='api');
+  if(!apis.length) return 'No API endpoints detected in this project.';
+  return `Found <strong>${apis.length}</strong> API endpoint(s):<div class="chat-sect">Endpoints</div>`+
+    apis.slice(0,15).map(a=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(a.id)}')">${escapeHtml(a.label)}</span> ${chatLoc(a)}</div>`).join('')+
+    (apis.length>15?`<div class="chat-mut" style="margin-top:4px">…and ${apis.length-15} more.</div>`:'');
+}
+
+function biggestAnswer(){
+  const files=graphEngine.nodes.filter(n=>n.type==='file');
+  const ranked=files.map(f=>({f,c:(graphEngine.getIncoming(f.id)||[]).length+(graphEngine.getOutgoing(f.id)||[]).length}))
+    .sort((a,b)=>b.c-a.c).slice(0,8);
+  if(!ranked.length) return 'No files loaded.';
+  return `Most connected files (by dependency count):<div class="chat-sect">Top files</div>`+
+    ranked.map(r=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(r.f.id)}')">${escapeHtml(r.f.label)}</span> <span class="chat-mut">${r.c} connections</span> ${chatLoc(r.f)}</div>`).join('');
+}
+
+function moduleAnswer(){
+  const mods=groupByModule();
+  if(!mods.length) return 'No modules detected.';
+  return `Project has <strong>${mods.length}</strong> module(s):<div class="chat-sect">Modules</div>`+
+    mods.slice(0,15).map(m=>`<div class="chat-row">${m.icon||'📁'} <strong>${escapeHtml(m.name)}</strong> <span class="chat-mut">${m.count} files</span></div>`).join('');
+}
+
+function generalAnswer(q,ents){
+  if(ents&&ents.length){
+    return `Here's what I found matching <em>${escapeHtml(q)}</em>:<div class="chat-sect">Matches</div>`+
+      ents.slice(0,8).map(n=>`<div class="chat-row"><span class="chat-link" onclick="openDetail('${jsq(n.id)}')">${escapeHtml(n.label||n.id)}</span> <span class="chat-mut">${escapeHtml(n.type)}</span> ${chatLoc(n)}</div>`).join('');
+  }
+  return `I couldn't find anything matching <em>${escapeHtml(q)}</em> in this project.<div class="chat-mut" style="margin-top:4px">Try a symbol, file or module name — e.g. "where is <em>login</em>", "who uses <em>auth</em>", "what breaks if I change <em>getUser</em>", or "find dead code".</div>`;
+}
+
+// ===== UPLOAD =====
+// Directories that hold dependencies, caches or build output — never the user's
+// own source. Excluding these is why a project with a .venv / node_modules no
+// longer reports thousands of "files".
+const IGNORE_SEGMENTS = new Set([
+  'node_modules','.git','.hg','.svn','.venv','venv','virtualenv','env','.env',
+  'site-packages','__pycache__','.pytest_cache','.ruff_cache','.mypy_cache',
+  '.tox','.eggs','.cache','.parcel-cache','dist','build','out','.next','.nuxt',
+  '.svelte-kit','.turbo','.angular','coverage','htmlcov','target','vendor',
+  'bower_components','Pods','.idea','.vscode','.gradle','.mvn','.terraform'
+]);
+function shouldIgnorePath(p){
+  const parts=String(p).replace(/\\/g,'/').split('/');
+  for(let i=0;i<parts.length-1;i++){
+    const s=parts[i].toLowerCase();
+    if(IGNORE_SEGMENTS.has(s)) return true;
+    if(s.startsWith('.')&&s!=='.') return true;   // hidden dirs (.venv, .git, …)
+  }
+  return false;
+}
+
+function scanFolder(input) {
+  const fl=input.files;
+  if(!fl||!fl.length) return;
+  const rd=document.getElementById('dashContent');
+  rd.innerHTML=`<div style="max-width:500px;margin:40px auto">
+    <div class="skeleton" style="height:20px;width:60%;margin-bottom:12px"></div>
+    <div class="skeleton" style="height:14px;width:40%;margin-bottom:8px"></div>
+    <div class="skeleton" style="height:80px;width:100%;margin-bottom:8px"></div>
+    <div class="skeleton" style="height:14px;width:70%"></div>
+  </div>`;
+  const readers=[],cm={};
+  const ext=new Set(['.js','.jsx','.ts','.tsx','.java','.py']);
+  let skipped=0;
+  for(const f of fl){
+    const e='.'+f.name.split('.').pop();
+    if(!ext.has(e)) continue;
+    if(shouldIgnorePath(f.webkitRelativePath||f.name)){ skipped++; continue; }
+    readers.push(new Promise(res=>{
+      const rr=new FileReader();
+      rr.onload=ev=>{cm[f.webkitRelativePath]=ev.target.result;res({path:f.webkitRelativePath,content:ev.target.result});};
+      rr.readAsText(f);
+    }));
+  }
+  Promise.all(readers).then(files=>{
+    if(!files.length){
+      rd.innerHTML='<div style="text-align:center;padding:40px;color:var(--text2)">No supported files found.'+(skipped?'<br><span style="font-size:.7rem">('+skipped+' dependency/generated files ignored)</span>':'')+'</div>';
+      return;
+    }
+    rd.innerHTML=`<div style="max-width:500px;margin:40px auto">
+      <div style="font-size:.8rem;color:var(--text2);margin-bottom:10px">Analyzing ${files.length} source file(s)${skipped?` · ${skipped} ignored (deps/caches/build)`:''}…</div>
+      <div class="skeleton" style="height:16px;width:50%;margin-bottom:10px"></div>
+      <div class="skeleton" style="height:60px;width:100%;margin-bottom:8px"></div>
+      <div class="skeleton" style="height:16px;width:35%"></div>
+    </div>`;
+    fetch(API+'/api/scan-files',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files})})
+    .then(r=>r.json()).then(d=>{
+      if(d.error){rd.innerHTML='<div style="text-align:center;padding:40px;color:var(--red)">'+escapeHtml(d.error)+'</div>';return;}
+      rebuildEngine(d.nodes,d.edges);
+      loadGraph(d,cm);
+    }).catch(e=>rd.innerHTML='<div style="text-align:center;padding:40px;color:var(--red)">'+escapeHtml(e.message)+'</div>');
+  });
+}
+
+function showPasteView() {
+  const c=document.getElementById('dashContent');
+  c.innerHTML=`<div style="max-width:500px;margin:30px auto">
+    <div style="font-size:.85rem;font-weight:500;margin-bottom:8px">✏️ Paste Code</div>
+    <textarea class="code-edit" id="pasteCode" style="height:120px" placeholder="Paste code here..."></textarea>
+    <div style="margin-top:6px;display:flex;gap:6px">
+      <input style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);font-size:.78rem;outline:none" id="pasteFn" value="sample.js">
+      <button class="btn btn-primary" onclick="analyzePaste()">Analyze</button>
+    </div>
+    <div id="pasteR" style="margin-top:6px;font-size:.7rem"></div>
+  </div>`;
+}
+
+function analyzePaste() {
+  const code=document.getElementById('pasteCode')?.value.trim();
+  const fn=document.getElementById('pasteFn')?.value.trim()||'sample.js';
+  if(!code) return;
+  const cm={};cm[fn]=code;
+  fetch(API+'/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,filename:fn})})
+  .then(r=>r.json()).then(d=>{
+    if(d.error){document.getElementById('pasteR').innerHTML='❌ '+escapeHtml(d.error);return;}
+    rebuildEngine(d.nodes,d.edges);
+    loadGraph(d,cm);
+  }).catch(e=>document.getElementById('pasteR').innerHTML='❌ '+escapeHtml(e.message));
+}
+
+function exportJSON() {
+  const b=new Blob([JSON.stringify(graphData,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='codebase-graph.json';a.click();
+}
+
+function importJSON(input) {
+  const f=input.files[0]; if(!f)return;
+  const rr=new FileReader();
+  rr.onload=function(ev){
+    try {
+      const d=JSON.parse(ev.target.result);
+      if(!d.nodes||!d.edges){alert('Invalid graph JSON');return;}
+      rebuildEngine(d.nodes,d.edges);
+      loadGraph(d,loadedCode||{});
+      // Sync to server, then refresh the summary from the real engine
+      fetch(API+'/api/graph',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nodes:d.nodes,edges:d.edges})})
+        .then(r=>r.json()).then(j=>{ if(j&&j.summary){ graphSummary=j.summary; renderDashboard(); } }).catch(()=>{});
+    }catch(e){alert('Invalid JSON file');}
+  };
+  rr.readAsText(f);
+  input.value='';
+}
+
+function short(id){const n=graphEngine?.getNode(id);return n?n.label:id.split('::').pop();}
+
+function hl(code){
+  return (code||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\/\/.*/g,m=>`<span class="cm">${m}</span>`)
+    .replace(/\/\*[\s\S]*?\*\//g,m=>`<span class="cm">${m}</span>`)
+    .replace(/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)/g,m=>`<span class="str">${m}</span>`)
+    .replace(/\b(function|const|let|var|class|import|export|return|if|else|for|while|async|await|new|throw|try|catch|from|require|module|def|public|private|static|void|int|String|boolean)\b/g,m=>`<span class="kw">${m}</span>`)
+    .replace(/\b(\w+)\s*\(/g,(m,f)=>`<span class="fn">${f}</span>(`);
+}
+
+// ===== ENGINE =====
+function rebuildEngine(nodes,edges) {
+  // Drop edges that reference missing nodes — they would crash graph rendering.
+  var _ids={}; (nodes||[]).forEach(function(n){_ids[n.id]=1;});
+  edges=(edges||[]).filter(function(e){return _ids[e.from]&&_ids[e.to];});
+  graphEngine={nodes,edges,_nm:null,_adj:null,_rev:null,
+    _b(){this._nm=new Map();this._adj=new Map();this._rev=new Map();
+      this.nodes.forEach(n=>this._nm.set(n.id,n));
+      this.edges.forEach(e=>{if(!this._adj.has(e.from))this._adj.set(e.from,[]);this._adj.get(e.from).push(e);if(!this._rev.has(e.to))this._rev.set(e.to,[]);this._rev.get(e.to).push(e);});
+    },
+    getNode(id){if(!this._nm)this._b();return this._nm.get(id);},
+    getIncoming(id){if(!this._rev)this._b();return this._rev.get(id)||[];},
+    getOutgoing(id){if(!this._adj)this._b();return this._adj.get(id)||[];},
+    search(q){if(!this._nm)this._b();const lq=q.toLowerCase();return this.nodes.filter(n=>n.id.toLowerCase().includes(lq)||(n.label||'').toLowerCase().includes(lq)).slice(0,30);},
+    getSummary(){const bt={};this.nodes.forEach(n=>{bt[n.type]=(bt[n.type]||0)+1;});return{totalNodes:this.nodes.length,totalEdges:this.edges.length,files:this.nodes.filter(n=>n.type==='file').length,apis:this.nodes.filter(n=>n.type==='api').length,nodeTypes:bt,deadFunctionCount:0};}
+  };graphEngine._b();
+}
+</script>
+</body>
+</html>
